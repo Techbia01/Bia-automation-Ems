@@ -1,0 +1,19 @@
+{
+  "name": "ems",
+  "version": "1.0.0",
+  "main": "index.js",
+  "scripts": {
+    "test": "cypress run",
+    "test:open": "cypress open",
+    "test:headed": "cypress run --headed",
+    "test:login": "cypress run --spec 'cypress/e2e/Login/**/*.cy.js'",
+    "test:login-open": "cypress open --e2e --browser chrome"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "devDependencies": {
+    "cypress": "^14.5.3"
+  }
+}

@@ -1,0 +1,35 @@
+// cypress/pages/config.js
+export const TEST_DATA = {
+  VALID_USER: {
+    email: 'astrid.tovar@bia.app',
+    password: 'Akamaru123*'
+  },
+  INVALID_USER: {
+    email: 'astrid.tovar@bia.app',
+    password: 'Claveincorrecta'
+  },
+  NEW_USER: {
+    nombre: 'test robot',
+    apellido: 'test',
+    correo: 'usuario.test@bia.app',
+    telefono: '3113073199',
+    areaRol: 'tech, qa'
+  }
+};
+
+export const ERROR_MESSAGES = {
+  INCORRECT_PASSWORD: 'Contraseña incorrecta'
+};
+
+export const URLS = {
+  LOGIN: '/login',
+  HOME: '/home'
+};
+
+export const INTERCEPTS = {
+  SIGNIN_FAIL: 'signinFail',
+  SIGNIN_SUCCESS: 'signin',
+  CONTRACTS: 'contracts',
+  CONSUMPTION_DATA: 'consumptionData'
+};
+
