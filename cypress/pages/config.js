@@ -1,11 +1,11 @@
 // cypress/pages/config.js
 export const TEST_DATA = {
   VALID_USER: {
-    email: 'astrid.tovar@bia.app',
-    password: 'Akamaru123*'
+    email: Cypress.env('TEST_EMAIL') || 'usuario@ejemplo.com',
+    password: Cypress.env('TEST_PASSWORD') || 'password123'
   },
   INVALID_USER: {
-    email: 'astrid.tovar@bia.app',
+    email: Cypress.env('TEST_EMAIL') || 'usuario@ejemplo.com',
     password: 'Claveincorrecta'
   },
   NEW_USER: {
