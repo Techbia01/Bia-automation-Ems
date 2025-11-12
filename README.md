@@ -6,7 +6,7 @@ Proyecto de automatización de pruebas con Cypress para EMS.
 
 1. Clonar el repositorio:
 ```bash
-git clone https://github.com/karendiaz-creator/EMS-BIA.git
+git clone [URL_DEL_REPOSITORIO]
 cd EMS-BIA
 ```
 
@@ -15,7 +15,16 @@ cd EMS-BIA
 npm install
 ```
 
-3. Ejecutar Cypress:
+3. Configurar variables de entorno:
+Crea un archivo `cypress.env.json` en la raíz del proyecto:
+```json
+{
+  "TEST_EMAIL": "tu-email@ejemplo.com",
+  "TEST_PASSWORD": "tu-password"
+}
+```
+
+4. Ejecutar Cypress:
 ```bash
 npm run test:open
 ```
