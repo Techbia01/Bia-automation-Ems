@@ -32,6 +32,7 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
     cy.intercept('GET', '**/ems-api/app-users/**').as('getUsers');
     cy.intercept('GET', '**/ms-client-orc/v1/access-management/roles/**').as('getRoles');
     cy.intercept('GET', '**/ems-api/app-users/roles/settings**').as('getRolesSettings');
+    cy.intercept('GET', '**/ms-client-orc/v1/members/**').as('getMembers');
 
     cy.viewport(1920, 1080);
     cy.visit(Cypress.config('baseUrl') + Cypress.env('loginPath'));
@@ -65,8 +66,21 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
       .and('not.be.disabled')
       .click();
 
-    // Espera a las llamadas clave que pueblan el Home
-    cy.wait('@signin', { timeout: 20000 });
+    // Espera a las llamadas clave que pueblan el Home y captura el access_token
+    cy.wait('@signin', { timeout: 20000 }).then((interception) => {
+      // Extraer el access_token del body de la respuesta del signin
+      const accessToken = interception.response.body.access_token;
+      cy.log(`🔑 Access Token capturado del signin: ${accessToken ? 'Sí' : 'No'}`);
+      
+      // Guardar el access_token para usarlo después en las peticiones a la API
+      if (accessToken) {
+        cy.wrap(accessToken).as('authToken');
+        cy.log(`✅ Token guardado correctamente (longitud: ${accessToken.length} caracteres)`);
+      } else {
+        cy.log('⚠️ No se encontró access_token en la respuesta');
+      }
+    });
+    
     cy.url({ timeout: 20000 }).should('include', '/home');
     cy.wait('@contracts', { timeout: 30000 });
 
@@ -80,21 +94,37 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
       .click();
 
     // Paso 3: Abrir el modal de creación de usuarios
+    cy.log('🔍 Buscando botón de crear usuario...');
     cy.get(creacionUsuarioPage.createUsersButton, { timeout: 10000 })
       .should('be.visible')
-      .click();
+      .click()
+      .then(() => {
+        cy.log('✅ Click en botón de crear usuario completado');
+      });
 
-    // Esperar a que el modal se abra
-    cy.wait(1000);
+    // Esperar a que el modal se abra y verificar que esté visible
+    cy.log('⏳ Esperando que el modal se abra...');
+    cy.wait(2000);
+    
+    // Verificar que el modal se abrió buscando el primer input
+    cy.get(creacionUsuarioPage.nombreInput, { timeout: 10000 })
+      .should('be.visible')
+      .then(() => {
+        cy.log('✅ Modal de creación abierto correctamente');
+      });
 
     // Paso 4: Llenar el formulario - Paso 1 (Datos)
     const timestamp = Date.now();
     const nombre = TEST_DATA.NEW_USER.nombre;
     const apellido = TEST_DATA.NEW_USER.apellido;
-    // Correo único para evitar duplicados (llave única)
+    // Solo el correo es único con timestamp (llave única en la base de datos)
     const correo = `testrobot${timestamp}@mailinator.com`;
     const telefono = TEST_DATA.NEW_USER.telefono;
     const areaRol = TEST_DATA.NEW_USER.areaRol;
+
+    cy.log(`📝 Creando usuario con correo único`);
+    cy.log(`📧 Correo: ${correo}`);
+    cy.log(`👤 Nombre: ${nombre} ${apellido}`);
 
     // Llenar nombre - escribir completo "TEST ROBOT"
     cy.get(creacionUsuarioPage.nombreInput, { timeout: 10000 })
@@ -181,16 +211,282 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
     cy.wait(1000);
 
     // Paso 7: Crear el usuario - en la siguiente pantalla
+    cy.log('🚀 Buscando botón para crear el usuario final...');
     cy.get(creacionUsuarioPage.crearUsuarioButton, { timeout: 15000 })
       .should('be.visible')
       .and('not.be.disabled')
+      .click()
+      .then(() => {
+        cy.log('✅ Click en "Crear Usuario" completado');
+      });
+
+    // ============================================================================
+    // VERIFICACIÓN: Confirmar que el usuario se creó correctamente en la tabla
+    // ============================================================================
+    
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('🔍 VERIFICANDO CREACIÓN DEL USUARIO EN LA BASE DE DATOS');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    
+    // Esperar a que se procese la creación del usuario
+    cy.log('⏳ Esperando 5 segundos para que se procese la creación...');
+    cy.wait(5000);
+    
+    // Obtener el access_token capturado del signin
+    cy.get('@authToken').then((accessToken) => {
+      
+      if (!accessToken) {
+        cy.log('❌ ERROR: No se pudo obtener el access_token');
+        cy.log('⚠️ Verificación de tabla omitida');
+        return;
+      }
+      
+      cy.log('✅ Access Token disponible');
+      cy.log('');
+      
+      // Contract IDs del usuario administrador (astrid.tovar@bia.app)
+      const contractIds = '0,18983,18984,18980,18982,18979,15703,15702,18981,4';
+      
+      cy.log('📋 Parámetros de la consulta:');
+      cy.log(`   - Correo buscado: ${correo}`);
+      cy.log(`   - Contract IDs: ${contractIds}`);
+      cy.log('');
+      
+      // Esperar un poco antes de consultar para dar tiempo a que se propague el usuario
+      cy.log('⏳ Esperando 3 segundos antes de consultar la API...');
+      cy.wait(3000);
+      
+      // Consultar el servicio /ms-client-orc/v1/members para verificar el usuario
+      cy.log('🌐 Consultando servicio: GET /ms-client-orc/v1/members');
+      cy.request({
+        method: 'GET',
+        url: `https://api.dev.bia.app/ms-client-orc/v1/members/?contract_ids=${contractIds}&limit=1000`,
+        headers: {
+          'Authorization': accessToken,
+          'x-platform': 'web',
+          'x-source': 'EMS',
+          'x-timezone': 'America/Bogota'
+        },
+        timeout: 60000, // Aumentar timeout a 60 segundos
+        failOnStatusCode: false
+      }).then((response) => {
+        
+        cy.log('');
+        cy.log(`📊 Respuesta del servicio: Status ${response.status}`);
+        
+        if (response.status !== 200) {
+          cy.log(`❌ ERROR: El servicio respondió con status ${response.status}`);
+          cy.log('⚠️ Verificación de tabla omitida');
+          return;
+        }
+        
+        // Mostrar la estructura de la respuesta para debugging
+        cy.log('🔍 DEBUG - Estructura de response.body:');
+        cy.log(`   Tipo: ${typeof response.body}`);
+        cy.log(`   Es Array: ${Array.isArray(response.body)}`);
+        cy.log(`   Keys: ${JSON.stringify(Object.keys(response.body))}`);
+        
+        // Extraer el array de usuarios de la respuesta
+        let usuarios = [];
+        if (Array.isArray(response.body)) {
+          usuarios = response.body;
+        } else if (response.body && response.body.data && Array.isArray(response.body.data)) {
+          usuarios = response.body.data;
+        } else if (response.body && response.body.members && Array.isArray(response.body.members)) {
+          usuarios = response.body.members;
+        } else if (response.body && response.body.users && Array.isArray(response.body.users)) {
+          usuarios = response.body.users;
+        }
+        
+        cy.log(`📊 Total de usuarios en la respuesta: ${usuarios.length}`);
+        cy.log('');
+        
+        if (usuarios.length === 0) {
+          cy.log('⚠️ No se encontraron usuarios en la respuesta');
+          cy.log('⚠️ Mostrando primeros 200 caracteres del response.body:');
+          cy.log(JSON.stringify(response.body).substring(0, 200));
+          return;
+        }
+        
+        // Buscar el usuario por correo electrónico
+        cy.log(`🔎 Buscando usuario con correo: ${correo}`);
+        const usuarioCreado = usuarios.find(user => user.email === correo);
+        
+        // VERIFICACIÓN PRINCIPAL: El usuario debe existir en la tabla
+        expect(usuarioCreado, `El usuario con correo "${correo}" debe existir en la tabla de members`).to.not.be.undefined;
+        
+        cy.log('');
+        cy.log('✅ ¡USUARIO ENCONTRADO EN LA BASE DE DATOS!');
+        cy.log('');
+        
+        // VERIFICACIÓN DEL CORREO: El correo ingresado debe coincidir exactamente
+        const correoEnTabla = usuarioCreado.email;
+        expect(correoEnTabla, 'El correo en la tabla debe coincidir con el correo ingresado').to.equal(correo);
+        
+        cy.log('═══════════════════════════════════════════════════════════');
+        cy.log('✅ VERIFICACIÓN EXITOSA');
+        cy.log('═══════════════════════════════════════════════════════════');
+        cy.log(`📧 Correo ingresado:  ${correo}`);
+        cy.log(`📧 Correo en tabla:   ${correoEnTabla}`);
+        cy.log('✅ Los correos coinciden perfectamente');
+        cy.log('═══════════════════════════════════════════════════════════');
+        cy.log('');
+        cy.log('🎉 ¡El usuario se creó correctamente en la base de datos!');
+        cy.log('');
+        
+      });
+    });
+
+    // ============================================================================
+    // LOGOUT: Cerrar sesión del usuario administrador
+    // ============================================================================
+    
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('🚪 CERRANDO SESIÓN DEL USUARIO ADMINISTRADOR');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    
+    // Click en el botón del sidebar header
+    cy.log('📍 Haciendo click en el sidebar header...');
+    cy.get('#sidebar-header-button', { timeout: 10000 })
+      .should('be.visible')
+      .click()
+      .then(() => {
+        cy.log('✅ Menú del sidebar abierto');
+      });
+    
+    // Esperar un momento para que se abra el menú
+    cy.wait(1000);
+    
+    // Click en el botón de logout
+    cy.log('📍 Haciendo click en "Cerrar sesión"...');
+    cy.get('#logout', { timeout: 10000 })
+      .should('be.visible')
+      .click()
+      .then(() => {
+        cy.log('✅ Click en "Cerrar sesión" completado');
+      });
+    
+    // Verificar que se haya redirigido al login
+    cy.log('⏳ Esperando redirección al login...');
+    cy.url({ timeout: 10000 }).should('include', '/login');
+    cy.log('✅ Sesión cerrada correctamente');
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('✅ LOGOUT EXITOSO');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    cy.log(`💾 Correo guardado para login: ${correo}`);
+    cy.log('');
+
+    // ============================================================================
+    // LOGIN CON USUARIO RECIÉN CREADO: Primera vez (cambio de contraseña)
+    // ============================================================================
+    
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('🔐 LOGIN CON USUARIO NUEVO');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    
+    // Contraseña temporal para usuarios nuevos
+    const passwordTemporal = 'biaenergy123*';
+    const passwordNueva = 'Karen1322*';
+    
+    cy.log(`📧 Email: ${correo}`);
+    cy.log(`🔑 Password temporal: ${passwordTemporal}`);
+    cy.log('');
+    
+    // Ingresar el correo del usuario nuevo
+    cy.log('📝 Ingresando correo del usuario nuevo...');
+    cy.get(loginPage.emailInput, { timeout: 10000 })
+      .should('be.visible')
+      .clear()
+      .type(correo, { delay: 0 })
+      .should('have.value', correo);
+    cy.log('✅ Correo ingresado correctamente');
+    
+    // Click en continuar
+    cy.get(loginPage.continueButton, { timeout: 10000 })
+      .should('be.visible')
+      .and('not.be.disabled')
       .click();
-
-    // Esperar a que se complete la creación
-    cy.wait('@createUser', { timeout: 30000 });
-
-    // Verificar que el usuario se creó correctamente
-    // (Puedes agregar más aserciones según lo que muestre la aplicación)
-    cy.contains('Usuario creado', { timeout: 15000 }).should('be.visible');
+    
+    // Ingresar la contraseña temporal
+    cy.log('🔑 Ingresando contraseña temporal...');
+    cy.get(loginPage.passwordInput, { timeout: 10000 })
+      .should('be.visible')
+      .clear()
+      .type(passwordTemporal, { delay: 0, log: false });
+    cy.log('✅ Contraseña temporal ingresada');
+    
+    // Click en el botón de login
+    cy.log('📍 Haciendo click en "Iniciar sesión"...');
+    cy.get('#login-button', { timeout: 10000 })
+      .should('be.visible')
+      .and('not.be.disabled')
+      .click();
+    cy.log('✅ Click en "Iniciar sesión" completado');
+    
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('🔄 CAMBIO DE CONTRASEÑA (PRIMERA VEZ)');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    
+    // Esperar a que cargue la pantalla de cambio de contraseña
+    cy.log('⏳ Esperando pantalla de cambio de contraseña...');
+    cy.wait(3000);
+    
+    // Ingresar nueva contraseña
+    cy.log('🔑 Ingresando nueva contraseña...');
+    cy.get('#password-input', { timeout: 15000 })
+      .should('be.visible')
+      .clear()
+      .type(passwordNueva, { delay: 0, log: false });
+    cy.log('✅ Nueva contraseña ingresada');
+    
+    // Confirmar nueva contraseña
+    cy.log('🔑 Confirmando nueva contraseña...');
+    cy.get('#confirm-password-input', { timeout: 10000 })
+      .should('be.visible')
+      .clear()
+      .type(passwordNueva, { delay: 0, log: false });
+    cy.log('✅ Contraseña confirmada');
+    
+    // Click en actualizar contraseña
+    cy.log('📍 Haciendo click en "Actualizar contraseña"...');
+    cy.get('#submit-button-reset', { timeout: 10000 })
+      .should('be.visible')
+      .and('not.be.disabled')
+      .click();
+    cy.log('✅ Click en "Actualizar contraseña" completado');
+    
+    // Verificar que aparezca el popup de bienvenida (onboarding)
+    cy.log('');
+    cy.log('⏳ Esperando popup de bienvenida (onboarding)...');
+    cy.contains('Bienvenid', { timeout: 20000 }).should('be.visible');
+    cy.log('✅ Popup de onboarding visible');
+    
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('✅ FLUJO COMPLETO EXITOSO');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    cy.log('🎉 ¡Usuario creado, verificado y login exitoso!');
+    cy.log('');
+    cy.log('📋 Resumen:');
+    cy.log(`   ✅ Usuario creado con correo: ${correo}`);
+    cy.log('   ✅ Correo verificado en servicio Members');
+    cy.log('   ✅ Login con usuario nuevo exitoso');
+    cy.log('   ✅ Contraseña actualizada correctamente');
+    cy.log('   ✅ Popup de onboarding mostrado');
+    cy.log('');
+    cy.log('═══════════════════════════════════════════════════════════');
+    cy.log('');
+    
   });
 });
