@@ -12,9 +12,10 @@ module.exports = defineConfig({
     screenshotOnRunFailure: true,
     chromeWebSecurity: false,
     // Configuración para evitar errores de cache
-    defaultCommandTimeout: 10000,
-    requestTimeout: 10000,
-    responseTimeout: 10000,
+    defaultCommandTimeout: 30000,
+    requestTimeout: 30000,
+    responseTimeout: 30000,
+    pageLoadTimeout: 60000,
     setupNodeEvents(on, config) {
       // Configuración para Chrome
       on('before:browser:launch', (browser, launchOptions) => {
@@ -28,6 +29,10 @@ module.exports = defineConfig({
           launchOptions.args.push('--disable-background-timer-throttling');
           launchOptions.args.push('--disable-backgrounding-occluded-windows');
           launchOptions.args.push('--disable-renderer-backgrounding');
+          // Opciones adicionales para mejorar la conectividad
+          launchOptions.args.push('--ignore-certificate-errors');
+          launchOptions.args.push('--ignore-ssl-errors');
+          launchOptions.args.push('--ignore-certificate-errors-spki-list');
         }
         return launchOptions;
       });

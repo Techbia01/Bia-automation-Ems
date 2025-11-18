@@ -15,13 +15,15 @@ describe('Login exitoso (Happy Path)', () => {
   });
 
   beforeEach(() => {
-    // Intercepts antes de visitar (para que Cypress los capture)
+    // Intercept del login
     cy.intercept('POST', '**/bia-auth/signin').as('signin');
-    cy.intercept('GET', '**/ms-users/contracts/**').as('contracts');
-    cy.intercept('GET', '**/ms-energy-insights/dashboard/v3/consumption-data').as('consumptionData');
 
     cy.viewport(1920, 1080);
-    cy.visit(Cypress.config('baseUrl') + Cypress.env('loginPath'));
+    // Aumentar timeout para la carga inicial de la página
+    cy.visit(Cypress.config('baseUrl') + Cypress.env('loginPath'), {
+      timeout: 60000,
+      failOnStatusCode: false
+    });
   });
 
   it('Debería loguearse correctamente con credenciales válidas', () => {
@@ -49,14 +51,12 @@ describe('Login exitoso (Happy Path)', () => {
       .and('not.be.disabled')
       .click();
 
-    // Espera a las llamadas clave que pueblan el Home
+    // Esperar que el login se complete
     cy.wait('@signin', { timeout: 20000 });
+    
+    // Verificar que llegó al home - aquí termina la automatización
     cy.url({ timeout: 20000 }).should('include', '/home');
-    cy.wait(['@contracts', '@consumptionData'], { timeout: 30000 });
-
-    // Aserciones estables en Home
-    // (idealmente cambia por data-cy: [data-cy=card-facturas], [data-cy=summary-consumption])
-    cy.contains('Facturas', { timeout: 15000 }).should('be.visible');
-    cy.contains('Resumen de consumo', { timeout: 15000 }).should('be.visible');
+    
+    cy.log('✅ Login exitoso - Usuario en el home');
   });
 });

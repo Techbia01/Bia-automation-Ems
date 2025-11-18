@@ -27,4 +27,5 @@ npm-debug.log*
 
 # Credentials
 cypress/fixtures/credenciales.json
+cypress/plugins/serviceAccountKey.json
 

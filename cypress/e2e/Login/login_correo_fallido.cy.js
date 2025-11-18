@@ -14,7 +14,7 @@ describe('Login fallido', () => {
   });
 
   beforeEach(() => {
-    // Intercepta el login de Firebase (credenciales inválidas -> 400)
+    // Intercepta el login (credenciales inválidas -> 400)
     cy.intercept('POST', '**/accounts:signInWithPassword*').as('signinFail');
 
     cy.viewport(1920, 1080);
