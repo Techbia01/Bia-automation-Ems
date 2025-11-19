@@ -89,7 +89,7 @@ describe('Validación de Campos Obligatorios - Creación de Usuario EMS', () => 
       .click();
 
     // Esperar a que la navegación se complete
-    cy.wait(2000);
+    cy.wait(1000);
     
     cy.get(creacionUsuarioPage.usersButton, { timeout: 15000 })
       .should('be.visible')
@@ -97,7 +97,7 @@ describe('Validación de Campos Obligatorios - Creación de Usuario EMS', () => 
 
     // Esperar a que la página cargue completamente
     cy.url({ timeout: 15000 }).should('include', '/settings/users');
-    cy.wait(3000); // Esperar más tiempo para que la página cargue completamente
+    cy.wait(1500);
     cy.log('✅ Navegación a usuarios completada');
 
     // ============================================================
@@ -113,11 +113,10 @@ describe('Validación de Campos Obligatorios - Creación de Usuario EMS', () => 
       .click();
 
     // Esperar a que el modal se abra completamente
-    cy.wait(3000); // Esperar más tiempo para que el modal se abra sin sobrecargar
+    cy.wait(1500);
     cy.get(creacionUsuarioPage.nombreInput, { timeout: 20000 })
       .should('be.visible')
       .should('be.enabled');
-    cy.wait(1000); // Esperar adicional para estabilizar
     cy.log('✅ Modal de creación abierto correctamente');
 
     // ============================================================
@@ -132,11 +131,9 @@ describe('Validación de Campos Obligatorios - Creación de Usuario EMS', () => 
     cy.get(creacionUsuarioPage.nombreInput, { timeout: 10000 })
       .should('be.visible');
     
-    // Hacer clic fuera de los campos para activar la validación (con más cuidado)
-    cy.get(creacionUsuarioPage.nombreInput).click({ force: true }); // Click en el campo primero
-    cy.wait(1000);
+    // Hacer clic fuera de los campos para activar la validación
     cy.get('body').click(0, 0); // Clic fuera para perder el foco
-    cy.wait(2000); // Esperar más tiempo para que se procese la validación
+    cy.wait(800); // Esperar para que se procese la validación
     
     // Verificar mensajes de error (si existen)
     cy.get('body').then(($body) => {
@@ -173,36 +170,31 @@ describe('Validación de Campos Obligatorios - Creación de Usuario EMS', () => 
     cy.get(creacionUsuarioPage.nombreInput, { timeout: 10000 })
       .should('be.visible')
       .clear()
-      .type('Test', { delay: 100 })
+      .type('Test', { delay: 50 })
       .should('have.value', 'Test');
-
-    cy.wait(2000); // Esperar más tiempo para que el servidor procese
 
     // Llenar Apellido
     cy.get(creacionUsuarioPage.apellidoInput, { timeout: 15000 })
       .should('be.visible')
       .clear()
-      .type('Robot', { delay: 100 })
+      .type('Robot', { delay: 50 })
       .should('have.value', 'Robot');
-
-    cy.wait(2000); // Esperar más tiempo para que el servidor procese
 
     // Llenar Correo
     cy.get(creacionUsuarioPage.correoInput, { timeout: 15000 })
       .should('be.visible')
       .clear()
-      .type('test@example.com', { delay: 100 })
+      .type('test@example.com', { delay: 50 })
       .should('have.value', 'test@example.com');
-
-    cy.wait(2000); // Esperar más tiempo para que el servidor procese
 
     // Llenar Teléfono (opcional, pero lo llenamos para probar)
     cy.get(creacionUsuarioPage.telefonoInput, { timeout: 15000 })
       .should('be.visible')
       .clear()
-      .type('3113073199', { delay: 100 });
+      .type('3113073199', { delay: 50 });
 
-    cy.wait(2000); // Esperar más tiempo para que se procesen los cambios
+    // Esperar solo una vez después de llenar todos los campos
+    cy.wait(1500);
 
     // Verificar que el modal sigue abierto
     cy.get(creacionUsuarioPage.nombreInput, { timeout: 10000 })
