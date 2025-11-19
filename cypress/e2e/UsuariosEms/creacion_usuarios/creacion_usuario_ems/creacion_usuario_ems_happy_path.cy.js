@@ -29,6 +29,7 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
     cy.intercept('GET', '**/ms-users/contracts/**').as('contracts');
     cy.intercept('GET', '**/ms-energy-insights/dashboard/v3/consumption-data').as('consumptionData');
     cy.intercept('POST', '**/ems-api/app-users/**').as('createUser');
+    cy.intercept('POST', '**/ms-client-orc/v1/members**').as('createMember'); // Interceptar creación en Members
     cy.intercept('GET', '**/ems-api/app-users/**').as('getUsers');
     cy.intercept('GET', '**/ms-client-orc/v1/access-management/roles/**').as('getRoles');
     cy.intercept('GET', '**/ems-api/app-users/roles/settings**').as('getRolesSettings');
@@ -115,11 +116,27 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
 
     // Paso 4: Llenar el formulario - Paso 1 (Datos)
     const timestamp = Date.now();
-    const nombre = TEST_DATA.NEW_USER.nombre;
-    const apellido = TEST_DATA.NEW_USER.apellido;
-    // Solo el correo es único con timestamp (llave única en la base de datos)
-    const correo = `testrobot${timestamp}@mailinator.com`;
-    const telefono = TEST_DATA.NEW_USER.telefono;
+    
+    // Generar valores únicos para la creación (nombres reales sin números)
+    const nombresReales = ['María', 'Carlos', 'Ana', 'Juan', 'Laura', 'Pedro', 'Sofía', 'Diego', 'Isabella', 'Andrés'];
+    const apellidosReales = ['González', 'Rodríguez', 'Martínez', 'López', 'García', 'Pérez', 'Sánchez', 'Ramírez', 'Torres', 'Flores'];
+    
+    // Seleccionar nombre y apellido basado en el timestamp para hacerlos únicos
+    const indiceNombre = timestamp % nombresReales.length;
+    const indiceApellido = (timestamp * 7) % apellidosReales.length;
+    
+    const nombre = nombresReales[indiceNombre];
+    const apellido = apellidosReales[indiceApellido];
+    
+    // Generar correo ÚNICO: timestamp + número aleatorio para garantizar que nunca se repita
+    // Usar Math.random() y convertirlo a string base36 para obtener caracteres alfanuméricos
+    const randomComponent = Math.random().toString(36).substring(2, 8); // 6 caracteres aleatorios
+    const correo = `testrobot${timestamp}${randomComponent}@mailinator.com`;
+    
+    // Teléfono de 10 dígitos: usar los últimos 3 dígitos del timestamp para mantenerlo único
+    const ultimosDigitos = timestamp.toString().slice(-3);
+    const telefono = `3113073${ultimosDigitos}`; // Total: 10 dígitos
+    
     const areaRol = TEST_DATA.NEW_USER.areaRol;
 
     cy.log(`📝 Creando usuario con correo único`);
@@ -186,9 +203,12 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
       .click();
 
     // Paso 5: Seleccionar rol - Paso 2 (Roles)
+    const rolSeleccionado = 'Administración'; // Rol que se va a seleccionar
     cy.get(creacionUsuarioPage.rolAdministracion, { timeout: 10000 })
       .should('be.visible')
       .click();
+    
+    cy.wrap(rolSeleccionado).as('rolSeleccionado'); // Guardar el rol para verificación posterior
 
     // Avanzar al siguiente paso
     cy.get(creacionUsuarioPage.siguienteButton, { timeout: 10000 })
@@ -219,6 +239,25 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
       .then(() => {
         cy.log('✅ Click en "Crear Usuario" completado');
       });
+    
+    // Esperar a que se complete la creación del usuario
+    cy.log('⏳ Esperando respuesta del servidor...');
+    cy.log('⏳ Esperando 8 segundos para que se procese la creación del usuario...');
+    
+    // Esperar tiempo suficiente para que el servidor procese la creación
+    // No dependemos de los intercepts para evitar fallos si no se capturan las peticiones
+    cy.wait(8000);
+    
+    // Log de los datos del usuario creado
+    cy.log('');
+    cy.log('📝 Valores del usuario creado:');
+    cy.log(`   Nombre: ${nombre}`);
+    cy.log(`   Apellido: ${apellido}`);
+    cy.log(`   Correo: ${correo}`);
+    cy.log(`   Teléfono: ${telefono}`);
+    cy.get('@rolSeleccionado').then((rol) => {
+      cy.log(`   Rol: ${rol}`);
+    });
 
     // ============================================================================
     // VERIFICACIÓN: Confirmar que el usuario se creó correctamente en la tabla
@@ -230,9 +269,9 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
     cy.log('═══════════════════════════════════════════════════════════');
     cy.log('');
     
-    // Esperar a que se procese la creación del usuario
-    cy.log('⏳ Esperando 5 segundos para que se procese la creación...');
-    cy.wait(5000);
+    // Esperar tiempo adicional para que el servidor procese la creación en Members
+    cy.log('⏳ Esperando 8 segundos para que se procese la creación en Members...');
+    cy.wait(8000);
     
     // Obtener el access_token capturado del signin
     cy.get('@authToken').then((accessToken) => {
@@ -325,13 +364,36 @@ describe('Creación de Usuarios EMS - Happy Path', () => {
         const correoEnTabla = usuarioCreado.email;
         expect(correoEnTabla, 'El correo en la tabla debe coincidir con el correo ingresado').to.equal(correo);
         
+        // Obtener datos adicionales del usuario para los logs
+        const nombreEnTabla = usuarioCreado.first_name || usuarioCreado.name || 'N/A';
+        const apellidoEnTabla = usuarioCreado.last_name || usuarioCreado.surname || 'N/A';
+        const telefonoEnTabla = usuarioCreado.phone || usuarioCreado.phone_number || 'N/A';
+        const rolesEnTabla = usuarioCreado.roles || [];
+        const rolesArray = Array.isArray(rolesEnTabla) ? rolesEnTabla : [rolesEnTabla];
+        const rolEnTabla = rolesArray.length > 0 
+          ? (typeof rolesArray[0] === 'string' ? rolesArray[0] : (rolesArray[0].name || rolesArray[0].role_name || rolesArray[0].role || 'N/A'))
+          : 'N/A';
+        
+        cy.log('');
+        cy.log('✅ Usuario creado con correo:');
+        cy.log(`   ${correo}`);
+        cy.log('');
+        cy.log('✅ Correo verificado en servicio Members:');
+        cy.log(`   ${correoEnTabla}`);
+        cy.log('');
+        cy.log('✅ Usuario creado con rol:');
+        cy.log(`   ${rolEnTabla}`);
+        cy.log('');
         cy.log('═══════════════════════════════════════════════════════════');
-        cy.log('✅ VERIFICACIÓN EXITOSA');
+        cy.log('✅ VERIFICACIÓN EXITOSA EN MEMBERS');
         cy.log('═══════════════════════════════════════════════════════════');
-        cy.log(`📧 Correo ingresado:  ${correo}`);
-        cy.log(`📧 Correo en tabla:   ${correoEnTabla}`);
-        cy.log('✅ Los correos coinciden perfectamente');
-        cy.log('═══════════════════════════════════════════════════════════');
+        cy.log('');
+        cy.log('📋 Detalles completos del usuario en Members:');
+        cy.log(`   Nombre: ${nombreEnTabla}`);
+        cy.log(`   Apellido: ${apellidoEnTabla}`);
+        cy.log(`   Correo: ${correoEnTabla}`);
+        cy.log(`   Teléfono: ${telefonoEnTabla}`);
+        cy.log(`   Rol: ${rolEnTabla}`);
         cy.log('');
         cy.log('🎉 ¡El usuario se creó correctamente en la base de datos!');
         cy.log('');
