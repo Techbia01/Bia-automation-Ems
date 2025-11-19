@@ -25,6 +25,13 @@ class CreacionUsuarioEmsPage {
   // Selectores del formulario - Paso 3 (Sedes)
   get seleccionarTodasLasSedesCheckbox() { return '#site-checkbox-0'; }
   
+  // Selectores para edición de usuarios
+  get tablaUsuarios() { return 'table, [role="table"], .table'; }
+  get primerCorreoTabla() { return 'tbody tr:first-child td:nth-child(2), tbody tr:first-child [data-testid*="email"], tbody tr:first-child a[href*="mailto"]'; }
+  get botonEditarUsuario() { return '#user-info-actions'; }
+  get botonGuardarCambios() { return '#user-modal-update-btn'; }
+  get mensajeCambiosGuardados() { return 'text=/cambios.*guardado|guardado.*cambio|se.*han.*guardado/i'; }
+  
   // Métodos para llenar el formulario
   llenarFormularioDatos(nombre, apellido, correo, telefono, areaRol) {
     // Nombre
