@@ -1,0 +1,45 @@
+{
+  "tarjetas_validas": [
+    {
+      "cardNumber": "4111111111111111",
+      "brand": "Visa",
+      "description": "Visa básica"
+    },
+    {
+      "cardNumber": "4444333322221111",
+      "brand": "Visa",
+      "description": "Visa con espacios"
+    },
+    {
+      "cardNumber": "5555555555554444",
+      "brand": "Mastercard",
+      "description": "Mastercard"
+    },
+    {
+      "cardNumber": "2223003122003222",
+      "brand": "Mastercard",
+      "description": "Mastercard 2-series"
+    },
+    {
+      "cardNumber": "378282246310005",
+      "brand": "American Express",
+      "description": "Amex (CVV 4 dígitos)"
+    },
+    {
+      "cardNumber": "30569309025904",
+      "brand": "Diners Club",
+      "description": "Diners Club"
+    },
+    {
+      "cardNumber": "6759000000000000",
+      "brand": "Maestro",
+      "description": "Maestro"
+    }
+  ],
+  "datos_titular": {
+    "firstName": "Alejandra",
+    "lastName": "Rojas"
+  },
+  "nombre_tarjeta_default": "Tarjeta principal"
+}
+

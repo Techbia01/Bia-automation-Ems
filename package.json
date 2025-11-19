@@ -7,13 +7,17 @@
     "test:open": "cypress open",
     "test:headed": "cypress run --headed",
     "test:login": "cypress run --spec 'cypress/e2e/Login/**/*.cy.js'",
-    "test:login-open": "cypress open --e2e --browser chrome"
+    "test:login-open": "cypress open --e2e --browser chrome",
+    "test:agregar-tarjeta": "cypress run --spec 'cypress/e2e/MetodosPago/**/*.cy.js'",
+    "test:agregar-tarjeta-open": "cypress open --e2e --browser chrome --spec 'cypress/e2e/MetodosPago/**/*.cy.js'",
+    "test:agregar-tarjeta-happy": "cypress run --spec 'cypress/e2e/MetodosPago/agregar_tarjeta/agregar_tarjeta_happy_path.cy.js'",
+    "test:agregar-tarjeta-validations": "cypress run --spec 'cypress/e2e/MetodosPago/agregar_tarjeta/agregar_tarjeta_validaciones.cy.js'"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "description": "",
   "devDependencies": {
-    "cypress": "^14.5.3"
+    "cypress": "^15.6.0"
   }
 }

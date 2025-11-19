@@ -1,0 +1,23 @@
+{
+  "usuarios_metodos_pago": [
+    {
+      "email": "user_auto@yopmail.com",
+      "password": "Hello2025!!",
+      "uid": "IiiY0O99dve8qbvB5wEYjsNxVqn2",
+      "descripcion": "Usuario 1 para tests de métodos de pago"
+    },
+    {
+      "email": "user_auto2@yopmail.com",
+      "password": "Hello2025!!",
+      "uid": "CKaE3lsKEOb97Z6MZwG31580NH82",
+      "descripcion": "Usuario 2 para tests de métodos de pago"
+    },
+    {
+      "email": "user_auto3@yopmail.com",
+      "password": "Hello2025!!",
+      "uid": "hxb2eUw08dVBRi368S5ZgZYQbbG3",
+      "descripcion": "Usuario 3 para tests de métodos de pago"
+    }
+  ]
+}
+
