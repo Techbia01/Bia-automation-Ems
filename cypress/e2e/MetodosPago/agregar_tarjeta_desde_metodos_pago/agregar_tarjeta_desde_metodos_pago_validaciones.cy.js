@@ -1,8 +1,8 @@
-// cypress/e2e/MetodosPago/agregar_tarjeta/agregar_tarjeta_validaciones.cy.js
+// cypress/e2e/MetodosPago/agregar_tarjeta_desde_metodos_pago/agregar_tarjeta_desde_metodos_pago_validaciones.cy.js
 import LoginPage from '../../../pages/LoginPage.js';
 import AgregarTarjetaPage from '../../../pages/metodos_pago/AgregarTarjetaPage.js';
 
-describe('Agregar Tarjeta - Validaciones', () => {
+describe('Agregar Tarjeta desde Métodos de Pago - Validaciones', () => {
   let loginPage;
   let agregarTarjetaPage;
   let usuariosAutomation;

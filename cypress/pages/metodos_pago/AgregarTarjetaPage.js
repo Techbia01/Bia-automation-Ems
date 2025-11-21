@@ -57,17 +57,16 @@ class AgregarTarjetaPage {
         cy.log('**Usuario tiene métodos de pago - Buscando botón "Agregar tarjeta"**');
         
         // Buscar el botón que contiene "Agregar tarjeta" (no "Agregar PSE")
-        cy.get(this.addPaymentMethodButton)
-          .contains('Agregar tarjeta')
+        cy.contains('.bia-button__text', 'Agregar tarjeta')
           .should('be.visible')
           .click();
         
       } else {
         // ESCENARIO 1: Usuario SIN métodos de pago
-        cy.log('**Usuario NO tiene métodos de pago - Click directo en botón**');
+        cy.log('**Usuario NO tiene métodos de pago - Buscando "Agregar método de pago"**');
         
-        // Click directo en el único botón disponible
-        cy.get(this.addPaymentMethodButton, { timeout: 10000 })
+        // Buscar específicamente el botón con el texto "Agregar método de pago"
+        cy.contains('.bia-button__text', 'Agregar método de pago')
           .should('be.visible')
           .click();
       }
@@ -88,45 +87,75 @@ class AgregarTarjetaPage {
    * @param {Object} cardData - Datos de la tarjeta
    */
   fillCardForm(cardData) {
+    cy.log('**Iniciando llenado del formulario de tarjeta**');
+    
     // Número de tarjeta
+    cy.log(`**Campo 1: Número de tarjeta**`);
     cy.get(this.cardNumberInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.cardNumber, { delay: 50 })
-      .should('have.value', cardData.cardNumber.replace(/\s/g, ''));
+      .type(cardData.cardNumber, { delay: 100, force: true });
+    
+    // Esperar a que el campo procese el número
+    cy.wait(500);
     
     // Nombre
+    cy.log(`**Campo 2: Nombre (${cardData.firstName})**`);
     cy.get(this.firstNameInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.firstName, { delay: 50 })
+      .type(cardData.firstName, { delay: 100, force: true })
       .should('have.value', cardData.firstName);
     
     // Apellido
+    cy.log(`**Campo 3: Apellido (${cardData.lastName})**`);
     cy.get(this.lastNameInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.lastName, { delay: 50 })
+      .type(cardData.lastName, { delay: 100, force: true })
       .should('have.value', cardData.lastName);
     
     // Fecha de expiración
+    cy.log(`**Campo 4: Fecha de expiración (${cardData.expirationDate})**`);
     cy.get(this.expirationDateInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.expirationDate, { delay: 50 });
+      .type(cardData.expirationDate, { delay: 100, force: true });
+    
+    // Esperar a que el campo procese la fecha
+    cy.wait(300);
     
     // Código de seguridad (CVV)
+    cy.log(`**Campo 5: Código de seguridad (CVV)**`);
     cy.get(this.securityCodeInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.securityCode, { delay: 50, log: false });
+      .type(cardData.securityCode, { delay: 100, force: true, log: false });
+    
+    // Esperar a que el campo procese el CVV
+    cy.wait(300);
     
     // Nombre personalizado de la tarjeta
+    cy.log(`**Campo 6: Nombre personalizado (${cardData.customName})**`);
     cy.get(this.customNameInput, { timeout: 10000 })
       .should('be.visible')
+      .should('be.enabled')
+      .click()
       .clear()
-      .type(cardData.customName, { delay: 50 })
+      .type(cardData.customName, { delay: 100, force: true })
       .should('have.value', cardData.customName);
+    
+    cy.log('**✅ Formulario completado exitosamente**');
   }
   
   /**
