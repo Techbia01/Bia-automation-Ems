@@ -28,7 +28,8 @@ export const URLS = {
 
 export const INTERCEPTS = {
   SIGNIN_FAIL: 'signinFail',
-  SIGNIN_SUCCESS: 'signin',
+  SIGNIN_SUCCESS: 'signinSuccess',
+  SIGNIN: 'signin',
   CONTRACTS: 'contracts',
   CONSUMPTION_DATA: 'consumptionData'
 };
