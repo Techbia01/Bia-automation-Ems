@@ -20,6 +20,12 @@ module.exports = defineConfig({
       // Configuración para Chrome
       on('before:browser:launch', (browser, launchOptions) => {
         if (browser.name === 'chrome') {
+          // Usar un perfil de usuario temporal limpio para evitar restauración de sesión
+          const os = require('os');
+          const path = require('path');
+          const tempProfileDir = path.join(os.tmpdir(), 'cypress-chrome-profile-' + Date.now());
+          launchOptions.args.push(`--user-data-dir=${tempProfileDir}`);
+          
           launchOptions.args.push('--disable-web-security');
           launchOptions.args.push('--disable-features=VizDisplayCompositor');
           launchOptions.args.push('--disable-gpu');
@@ -33,6 +39,24 @@ module.exports = defineConfig({
           launchOptions.args.push('--ignore-certificate-errors');
           launchOptions.args.push('--ignore-ssl-errors');
           launchOptions.args.push('--ignore-certificate-errors-spki-list');
+          // Deshabilitar completamente el diálogo de restauración de páginas
+          launchOptions.args.push('--disable-session-crashed-bubble');
+          launchOptions.args.push('--disable-infobars');
+          launchOptions.args.push('--disable-restore-session-state');
+          launchOptions.args.push('--no-first-run');
+          launchOptions.args.push('--no-default-browser-check');
+          launchOptions.args.push('--disable-popup-blocking');
+          launchOptions.args.push('--disable-prompt-on-repost');
+          launchOptions.args.push('--disable-hang-monitor');
+          launchOptions.args.push('--disable-client-side-phishing-detection');
+          launchOptions.args.push('--disable-component-update');
+          launchOptions.args.push('--disable-domain-reliability');
+          launchOptions.args.push('--disable-features=TranslateUI');
+          launchOptions.args.push('--disable-ipc-flooding-protection');
+          launchOptions.args.push('--disable-notifications');
+          launchOptions.args.push('--disable-sync');
+          launchOptions.args.push('--disable-background-networking');
+          launchOptions.args.push('--disable-default-apps');
         }
         return launchOptions;
       });

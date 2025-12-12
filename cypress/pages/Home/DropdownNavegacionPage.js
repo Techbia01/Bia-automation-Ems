@@ -4,6 +4,9 @@ class DropdownNavegacionPage {
   get sidebarHeaderButton() { return '#sidebar-header-button'; }
   get cambiarCuentaButton() { return '#change-account'; }
   get solicitarFuncionalidadButton() { return '#request-feature'; }
+  get tarifasButton() { return '#rates'; }
+  get legalesButton() { return '#legal'; }
+  get blogButton() { return '#blog'; }
   get inputCorreoCliente() { return '#input-on0ga5z8g'; }
   get cambiarCuentaSubmitButton() { return '.bia-button.bia-button--primary.bia-button--medium'; }
 
@@ -12,7 +15,7 @@ class DropdownNavegacionPage {
     cy.get(this.sidebarHeaderButton, { timeout: 10000 })
       .should('be.visible')
       .and('be.enabled')
-      .click();
+      .clickVisible({ pause: 800, highlight: true }); // Resaltar antes de hacer clic
     
     // Esperar a que el dropdown se abra completamente
     cy.wait(2000);
@@ -144,6 +147,267 @@ class DropdownNavegacionPage {
     this.hacerClicEnSidebarHeader();
     this.hacerClicEnSolicitarFuncionalidad();
     this.verificarRedireccionTypeform();
+  }
+
+  hacerClicEnTarifas() {
+    // Esperar a que el dropdown esté completamente abierto y renderizado
+    cy.wait(2000);
+    
+    // Intentar encontrar el elemento por ID primero
+    cy.get('body').then(($body) => {
+      const elementById = $body.find(this.tarifasButton);
+      
+      if (elementById.length > 0) {
+        cy.log('✅ Elemento #rates encontrado por ID');
+        
+        const href = elementById.attr('href');
+        const target = elementById.attr('target');
+        const isVisible = elementById.is(':visible');
+        
+        cy.log(`🔍 href: ${href}, target: ${target}, visible: ${isVisible}`);
+        
+        // Si tiene href, usar ese para navegar
+        if (href) {
+          if (target === '_blank') {
+            cy.log('⚠️ Enlace tiene target="_blank", removiendo...');
+            cy.get(this.tarifasButton)
+              .invoke('removeAttr', 'target')
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.log('✅ Haciendo clic en enlace...');
+            cy.get(this.tarifasButton)
+              .should('be.visible')
+              .clickVisible({ pause: 1000, highlight: true });
+          }
+        } else {
+          // Si no tiene href, hacer clic normal con resaltado visual
+          cy.log('✅ Elemento sin href, haciendo clic normal...');
+          if (isVisible) {
+            cy.get(this.tarifasButton)
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.get(this.tarifasButton)
+              .scrollAndClick({ pause: 1000, highlight: true });
+          }
+        }
+      } else {
+        // Si no se encuentra por ID, buscar por texto
+        cy.log('⚠️ Elemento no encontrado por ID, buscando por texto...');
+        cy.contains(/tarifas/i, { timeout: 10000 })
+          .should('exist')
+          .scrollIntoView()
+          .then(($el) => {
+            const href = $el.attr('href');
+            const target = $el.attr('target');
+            
+          if (href) {
+            if (target === '_blank') {
+              cy.wrap($el).invoke('removeAttr', 'target').clickVisible({ pause: 1000, highlight: true });
+            } else {
+              cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+            }
+          } else {
+            cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+          }
+          });
+      }
+    });
+    
+    // Esperar un momento para que la navegación se procese
+    cy.wait(3000);
+  }
+
+  navegarATarifas() {
+    this.hacerClicEnSidebarHeader();
+    cy.wait(3000); // Esperar a que el dropdown se renderice completamente
+    
+    // Debug: verificar que el elemento existe antes de hacer clic
+    cy.get('body').then(($body) => {
+      const ratesElement = $body.find('#rates');
+      cy.log(`🔍 Elemento #rates encontrado: ${ratesElement.length > 0}`);
+      if (ratesElement.length > 0) {
+        cy.log(`🔍 Elemento visible: ${ratesElement.is(':visible')}`);
+        cy.log(`🔍 Elemento texto: ${ratesElement.text()}`);
+        cy.log(`🔍 Elemento href: ${ratesElement.attr('href')}`);
+      }
+    });
+    
+    // Opcional: Descomentar la siguiente línea para pausar aquí y ver el estado
+    // cy.pause(); // Presiona "Resume" en Cypress para continuar
+    
+    this.hacerClicEnTarifas();
+  }
+
+  hacerClicEnLegales() {
+    // Esperar a que el dropdown esté completamente abierto y renderizado
+    cy.wait(2000);
+    
+    // Intentar encontrar el elemento por ID primero
+    cy.get('body').then(($body) => {
+      const elementById = $body.find(this.legalesButton);
+      
+      if (elementById.length > 0) {
+        cy.log('✅ Elemento #legal encontrado por ID');
+        
+        const href = elementById.attr('href');
+        const target = elementById.attr('target');
+        const isVisible = elementById.is(':visible');
+        
+        cy.log(`🔍 href: ${href}, target: ${target}, visible: ${isVisible}`);
+        
+        // Si tiene href, usar ese para navegar
+        if (href) {
+          if (target === '_blank') {
+            cy.log('⚠️ Enlace tiene target="_blank", removiendo...');
+            cy.get(this.legalesButton)
+              .invoke('removeAttr', 'target')
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.log('✅ Haciendo clic en enlace...');
+            cy.get(this.legalesButton)
+              .should('be.visible')
+              .clickVisible({ pause: 1000, highlight: true });
+          }
+        } else {
+          // Si no tiene href, hacer clic normal con resaltado visual
+          cy.log('✅ Elemento sin href, haciendo clic normal...');
+          if (isVisible) {
+            cy.get(this.legalesButton)
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.get(this.legalesButton)
+              .scrollAndClick({ pause: 1000, highlight: true });
+          }
+        }
+      } else {
+        // Si no se encuentra por ID, buscar por texto
+        cy.log('⚠️ Elemento no encontrado por ID, buscando por texto...');
+        cy.contains(/legales/i, { timeout: 10000 })
+          .should('exist')
+          .scrollIntoView()
+          .then(($el) => {
+            const href = $el.attr('href');
+            const target = $el.attr('target');
+            
+            if (href) {
+              if (target === '_blank') {
+                cy.wrap($el).invoke('removeAttr', 'target').clickVisible({ pause: 1000, highlight: true });
+              } else {
+                cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+              }
+            } else {
+              cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+            }
+          });
+      }
+    });
+    
+    // Esperar un momento para que la navegación se procese
+    cy.wait(3000);
+  }
+
+  navegarALegales() {
+    this.hacerClicEnSidebarHeader();
+    cy.wait(3000); // Esperar a que el dropdown se renderice completamente
+    
+    // Debug: verificar que el elemento existe antes de hacer clic
+    cy.get('body').then(($body) => {
+      const legalElement = $body.find('#legal');
+      cy.log(`🔍 Elemento #legal encontrado: ${legalElement.length > 0}`);
+      if (legalElement.length > 0) {
+        cy.log(`🔍 Elemento visible: ${legalElement.is(':visible')}`);
+        cy.log(`🔍 Elemento texto: ${legalElement.text()}`);
+        cy.log(`🔍 Elemento href: ${legalElement.attr('href')}`);
+      }
+    });
+    
+    this.hacerClicEnLegales();
+  }
+
+  hacerClicEnBlog() {
+    // Esperar a que el dropdown esté completamente abierto y renderizado
+    cy.wait(2000);
+    
+    // Intentar encontrar el elemento por ID primero
+    cy.get('body').then(($body) => {
+      const elementById = $body.find(this.blogButton);
+      
+      if (elementById.length > 0) {
+        cy.log('✅ Elemento #blog encontrado por ID');
+        
+        const href = elementById.attr('href');
+        const target = elementById.attr('target');
+        const isVisible = elementById.is(':visible');
+        
+        cy.log(`🔍 href: ${href}, target: ${target}, visible: ${isVisible}`);
+        
+        // Si tiene href, usar ese para navegar
+        if (href) {
+          if (target === '_blank') {
+            cy.log('⚠️ Enlace tiene target="_blank", removiendo...');
+            cy.get(this.blogButton)
+              .invoke('removeAttr', 'target')
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.log('✅ Haciendo clic en enlace...');
+            cy.get(this.blogButton)
+              .should('be.visible')
+              .clickVisible({ pause: 1000, highlight: true });
+          }
+        } else {
+          // Si no tiene href, hacer clic normal con resaltado visual
+          cy.log('✅ Elemento sin href, haciendo clic normal...');
+          if (isVisible) {
+            cy.get(this.blogButton)
+              .clickVisible({ pause: 1000, highlight: true });
+          } else {
+            cy.get(this.blogButton)
+              .scrollAndClick({ pause: 1000, highlight: true });
+          }
+        }
+      } else {
+        // Si no se encuentra por ID, buscar por texto
+        cy.log('⚠️ Elemento no encontrado por ID, buscando por texto...');
+        cy.contains(/blog/i, { timeout: 10000 })
+          .should('exist')
+          .scrollIntoView()
+          .then(($el) => {
+            const href = $el.attr('href');
+            const target = $el.attr('target');
+            
+            if (href) {
+              if (target === '_blank') {
+                cy.wrap($el).invoke('removeAttr', 'target').clickVisible({ pause: 1000, highlight: true });
+              } else {
+                cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+              }
+            } else {
+              cy.wrap($el).clickVisible({ pause: 1000, highlight: true });
+            }
+          });
+      }
+    });
+    
+    // Esperar un momento para que la navegación se procese
+    cy.wait(3000);
+  }
+
+  navegarABlog() {
+    this.hacerClicEnSidebarHeader();
+    cy.wait(3000); // Esperar a que el dropdown se renderice completamente
+    
+    // Debug: verificar que el elemento existe antes de hacer clic
+    cy.get('body').then(($body) => {
+      const blogElement = $body.find('#blog');
+      cy.log(`🔍 Elemento #blog encontrado: ${blogElement.length > 0}`);
+      if (blogElement.length > 0) {
+        cy.log(`🔍 Elemento visible: ${blogElement.is(':visible')}`);
+        cy.log(`🔍 Elemento texto: ${blogElement.text()}`);
+        cy.log(`🔍 Elemento href: ${blogElement.attr('href')}`);
+      }
+    });
+    
+    this.hacerClicEnBlog();
   }
 }
 

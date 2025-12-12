@@ -23,7 +23,10 @@ export const ERROR_MESSAGES = {
 
 export const URLS = {
   LOGIN: '/login',
-  HOME: '/home'
+  HOME: '/home',
+  TARIFAS: 'https://bia-energy.webflow.io/tarifas',
+  LEGALES: 'https://www.bia.app/legales',
+  BLOG: 'https://news.bia.app/'
 };
 
 export const INTERCEPTS = {
