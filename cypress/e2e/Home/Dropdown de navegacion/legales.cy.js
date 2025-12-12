@@ -1,9 +1,9 @@
 // cypress/e2e/Home/Dropdown de navegacion/legales/legales.cy.js
-import LoginPage from '../../../../pages/LoginPage.js';
-import HomePage from '../../../../pages/HomePage.js';
-import DropdownNavegacionPage from '../../../../pages/Home/DropdownNavegacionPage.js';
-import LegalesPage from '../../../../pages/LegalesPage.js';
-import { INTERCEPTS } from '../../../../pages/config.js';
+import LoginPage from '../../../pages/LoginPage.js';
+import HomePage from '../../../pages/HomePage.js';
+import DropdownNavegacionPage from '../../../pages/Home/DropdownNavegacionPage.js';
+import LegalesPage from '../../../pages/LegalesPage.js';
+import { INTERCEPTS } from '../../../pages/config.js';
 
 describe('Dropdown de navegación - Legales', () => {
   let loginPage;

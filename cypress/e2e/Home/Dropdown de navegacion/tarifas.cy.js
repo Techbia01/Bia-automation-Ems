@@ -1,15 +1,15 @@
-// cypress/e2e/Home/Dropdown de navegacion/blog/blog.cy.js
-import LoginPage from '../../../../pages/LoginPage.js';
-import HomePage from '../../../../pages/HomePage.js';
-import DropdownNavegacionPage from '../../../../pages/Home/DropdownNavegacionPage.js';
-import BlogPage from '../../../../pages/BlogPage.js';
-import { INTERCEPTS } from '../../../../pages/config.js';
+// cypress/e2e/Home/Dropdown de navegacion/tarifas/tarifas.cy.js
+import LoginPage from '../../../pages/LoginPage.js';
+import HomePage from '../../../pages/HomePage.js';
+import DropdownNavegacionPage from '../../../pages/Home/DropdownNavegacionPage.js';
+import TarifasPage from '../../../pages/TarifasPage.js';
+import { INTERCEPTS } from '../../../pages/config.js';
 
-describe('Dropdown de navegación - Blog', () => {
+describe('Dropdown de navegación - Tarifas', () => {
   let loginPage;
   let homePage;
   let dropdownNavegacionPage;
-  let blogPage;
+  let tarifasPage;
 
   before(() => {
     // (Temporal) Evita que scripts externos rompan el test
@@ -103,10 +103,10 @@ describe('Dropdown de navegación - Blog', () => {
     loginPage = new LoginPage();
     homePage = new HomePage();
     dropdownNavegacionPage = new DropdownNavegacionPage();
-    blogPage = new BlogPage();
+    tarifasPage = new TarifasPage();
   });
 
-  it('Debería redirigir a la página de blog y mostrar la vista del blog', () => {
+  it('Debería redirigir a la página de tarifas exitosamente', () => {
     // Paso 1: Login inicial
     const email = 'astrid.tovar@bia.app';
     const password = 'Akamaru123*';
@@ -143,18 +143,15 @@ describe('Dropdown de navegación - Blog', () => {
     cy.log('⏳ Esperando a que todos los datos y configuraciones se procesen...');
     cy.wait(3000);
     
-    cy.log('✅ Datos procesados, continuando con la navegación a blog...');
+    cy.log('✅ Datos procesados, continuando con la navegación a tarifas...');
 
-    // Paso 2: Navegar a blog desde el dropdown
-    dropdownNavegacionPage.navegarABlog();
+    // Paso 2: Navegar a tarifas desde el dropdown
+    dropdownNavegacionPage.navegarATarifas();
 
-    // Paso 3: Verificar que se redirige y carga la página de blog correctamente
-    blogPage.verificarQueCargo();
-
-    // Paso 4: Verificar que la vista del blog se muestra correctamente
-    blogPage.verificarVistaBlog();
+    // Paso 3: Verificar que se redirige y carga la página de tarifas correctamente
+    tarifasPage.verificarQueCargo();
     
-    cy.log('✅ Navegación a blog y visualización completada exitosamente - Test finalizado');
+    cy.log('✅ Navegación a tarifas completada exitosamente - Test finalizado');
   });
 });
 
