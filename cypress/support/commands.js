@@ -25,9 +25,9 @@ Cypress.Commands.add('login', (email, password) => {
   cy.contains('Facturas', { timeout: 15000 }).should('be.visible');
 });
 
-// Comando personalizado para hacer clic con resaltado visual
+// Comando personalizado para hacer clic con resaltado visual mejorado
 Cypress.Commands.add('clickVisible', { prevSubject: 'element' }, (subject, options = {}) => {
-  const { pause = 500, highlight = true } = options;
+  const { pause = 1000, highlight = true } = options;
   
   // Resaltar el elemento antes de hacer clic
   if (highlight) {
@@ -36,14 +36,23 @@ Cypress.Commands.add('clickVisible', { prevSubject: 'element' }, (subject, optio
         // Guardar estilos originales
         const originalOutline = $el.css('outline');
         const originalBoxShadow = $el.css('box-shadow');
+        const originalBackground = $el.css('background-color');
+        const originalZIndex = $el.css('z-index');
+        const originalPosition = $el.css('position');
         
-        // Aplicar resaltado visual
+        // Aplicar resaltado visual más visible
         $el.css({
-          'outline': '3px solid #00ff00',
-          'outline-offset': '2px',
-          'box-shadow': '0 0 10px rgba(0, 255, 0, 0.8)',
-          'transition': 'all 0.3s ease'
+          'outline': '4px solid #00ff00',
+          'outline-offset': '3px',
+          'box-shadow': '0 0 20px rgba(0, 255, 0, 1), 0 0 40px rgba(0, 255, 0, 0.6)',
+          'background-color': 'rgba(0, 255, 0, 0.2)',
+          'transition': 'all 0.3s ease',
+          'z-index': '99999',
+          'position': 'relative'
         });
+        
+        // Log para indicar que se está resaltando
+        cy.log(`🖱️ Resaltando elemento antes del clic (pausa: ${pause}ms)`);
         
         // Esperar un momento para que se vea el resaltado
         cy.wait(pause);
@@ -51,23 +60,32 @@ Cypress.Commands.add('clickVisible', { prevSubject: 'element' }, (subject, optio
         // Restaurar estilos originales antes del clic
         $el.css({
           'outline': originalOutline,
-          'box-shadow': originalBoxShadow
+          'box-shadow': originalBoxShadow,
+          'background-color': originalBackground,
+          'z-index': originalZIndex,
+          'position': originalPosition
         });
       });
   } else {
     cy.wait(pause);
   }
   
+  // Log antes del clic
+  cy.log('🖱️ Realizando clic en el elemento...');
+  
   // Hacer el clic
   cy.wrap(subject).click();
   
-  // Pequeña pausa después del clic para ver el resultado
-  cy.wait(300);
+  // Pausa después del clic para ver el resultado
+  cy.wait(500);
+  
+  cy.log('✅ Clic completado');
 });
 
-// Comando para scroll y clic visible
+// Comando para scroll y clic visible con resaltado mejorado
 Cypress.Commands.add('scrollAndClick', { prevSubject: 'element' }, (subject, options = {}) => {
+  cy.log('📜 Desplazando al elemento y haciendo clic...');
   cy.wrap(subject)
-    .scrollIntoView({ duration: 500 })
+    .scrollIntoView({ duration: 800, easing: 'swing' }) // Animación más suave y visible
     .clickVisible(options);
 });

@@ -3,6 +3,8 @@ const { defineConfig } = require('cypress');
 module.exports = defineConfig({
   e2e: {
     baseUrl: 'https://web.dev.bia.app',
+    specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
+    excludeSpecPattern: ['**/1-getting-started/**', '**/2-advanced-examples/**'],
     env: {
       loginPath: '/login',
     },
