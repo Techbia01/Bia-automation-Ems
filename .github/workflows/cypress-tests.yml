@@ -48,7 +48,12 @@ jobs:
           cache: 'npm'
       
       - name: Instalar dependencias
-        run: npm ci
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
       
       - name: Ejecutar pruebas Cypress
         id: cypress-run
@@ -109,9 +114,11 @@ jobs:
       - name: Enviar notificación a Slack
         if: always()
         continue-on-error: true
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         uses: slackapi/slack-github-action@v1
         with:
-          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          webhook-url: ${{ env.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": "${{ steps.test-result.outputs.message }}",
