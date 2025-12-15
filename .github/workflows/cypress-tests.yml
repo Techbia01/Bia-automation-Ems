@@ -114,11 +114,10 @@ jobs:
       - name: Enviar notificación a Slack
         if: always()
         continue-on-error: true
+        uses: slackapi/slack-github-action@v1
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        uses: slackapi/slack-github-action@v1
         with:
-          webhook-url: ${{ env.SLACK_WEBHOOK_URL }}
           payload: |
             {
               "text": "${{ steps.test-result.outputs.message }}",
