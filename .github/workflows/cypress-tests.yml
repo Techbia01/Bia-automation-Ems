@@ -67,9 +67,19 @@ jobs:
           # Esperar a que el servidor esté listo (si aplica)
           wait-on: 'https://web.dev.bia.app'
           wait-on-timeout: 120
+          # Configuración adicional
+          record: false
+          parallel: false
+          # Ejecutar todos los specs
+          spec: 'cypress/e2e/**/*.cy.js'
         env:
           # Variables de entorno si las necesitas
           CYPRESS_BASE_URL: ${{ secrets.CYPRESS_BASE_URL || 'https://web.dev.bia.app' }}
+          # Configuración para evitar timeouts
+          CYPRESS_defaultCommandTimeout: 30000
+          CYPRESS_requestTimeout: 30000
+          CYPRESS_responseTimeout: 30000
+          CYPRESS_pageLoadTimeout: 60000
       
       - name: Obtener resultado de pruebas
         id: test-result
