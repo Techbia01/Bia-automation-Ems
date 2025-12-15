@@ -91,9 +91,115 @@ EMS/
 └── package.json
 ```
 
+## 🤖 Automatización CI/CD
+
+Este proyecto incluye configuración para ejecutar las pruebas automáticamente.
+
+### ⚡ GitHub Actions (Recomendado - Gratis)
+
+El proyecto está configurado con **GitHub Actions** para ejecutar las pruebas automáticamente.
+
+#### Características:
+- ✅ **Gratis** para repositorios públicos y privados (con límites razonables)
+- ✅ **Programación automática**: Las pruebas se ejecutan a horas específicas
+- ✅ **Ejecución manual**: Puedes ejecutar las pruebas cuando quieras desde GitHub
+- ✅ **Ejecución en push/PR**: Se ejecutan automáticamente al hacer push o crear PRs
+
+#### Configuración Automática:
+
+1. **Sube tu código a GitHub** (si aún no lo has hecho)
+2. **Las pruebas se ejecutarán automáticamente**:
+   - Al hacer push a `main`, `master` o `develop`
+   - Al crear un Pull Request
+   - Según el horario programado (actualmente: 6 AM y 6 PM UTC diario)
+   - Manualmente desde la pestaña "Actions" en GitHub
+
+#### Programar Horarios Personalizados:
+
+Para cambiar los horarios de ejecución automática:
+
+1. Abre `.github/workflows/cypress-tests.yml`
+2. Modifica la sección `schedule:` con tus horarios preferidos
+3. Consulta `.github/SCHEDULE_GUIDE.md` para ejemplos y guía completa
+
+**Ejemplo rápido** - Ejecutar todos los días a las 9 AM hora de México:
+```yaml
+schedule:
+  - cron: '0 15 * * *'  # 9 AM México = 3 PM UTC
+```
+
+#### Ver Resultados:
+
+1. Ve a la pestaña **Actions** en tu repositorio de GitHub
+2. Haz clic en cualquier ejecución para ver los resultados
+3. Descarga videos y screenshots si hay fallos
+
+#### 🔔 Notificaciones en Slack:
+
+El proyecto está configurado para enviar notificaciones automáticas a Slack cuando las pruebas se completen.
+
+**Para configurar Slack:**
+
+1. Crea un Webhook en Slack (consulta `.github/SLACK_SETUP.md` para instrucciones detalladas)
+2. Agrega el Webhook URL como secret en GitHub:
+   - Ve a Settings → Secrets → Actions
+   - Crea un nuevo secret llamado `SLACK_WEBHOOK_URL`
+   - Pega tu Webhook URL
+3. ¡Listo! Recibirás notificaciones automáticas en Slack
+
+Las notificaciones incluyen:
+- ✅ Estado de las pruebas (éxito/fallo)
+- 📊 Enlace a resultados completos
+- 🔗 Información del commit y rama
+- 👤 Quién ejecutó las pruebas
+
+### 🔄 Integración con Jenkins (Alternativa)
+
+Este proyecto también incluye un `Jenkinsfile` para ejecutar las pruebas en Jenkins si prefieres esa opción.
+
+### Configuración en Jenkins
+
+1. **Crear un nuevo Pipeline Job**:
+   - En Jenkins, crea un nuevo item de tipo "Pipeline"
+   - En la configuración, selecciona "Pipeline script from SCM"
+   - Elige tu sistema de control de versiones (Git)
+   - Especifica la URL del repositorio y la rama
+   - El script path debe ser `Jenkinsfile`
+
+2. **Requisitos del servidor Jenkins**:
+   - Node.js instalado (versión 18 o superior recomendada)
+   - npm instalado
+   - Chrome/Chromium instalado para ejecutar Cypress
+
+3. **Configuración opcional**:
+   - Puedes ajustar el `NODE_VERSION` en el `Jenkinsfile` según tu entorno
+   - Los videos y screenshots se archivan automáticamente como artefactos
+
+4. **Ejecutar el pipeline**:
+   - Haz clic en "Build Now" para ejecutar las pruebas
+   - Los resultados estarán disponibles en la consola de Jenkins
+   - Los artefactos (videos y screenshots) estarán disponibles en la página del build
+
+### Personalización del Pipeline
+
+Si necesitas ejecutar solo ciertos tests, puedes modificar el stage "Ejecutar pruebas Cypress" en el `Jenkinsfile`:
+
+```groovy
+sh 'npm run test:login'  // Solo tests de login
+```
+
+O ejecutar un test específico:
+
+```groovy
+sh 'npx cypress run --spec "cypress/e2e/Login/login_happy_path_con_correo.cy.js"'
+```
+
 ## 🆘 Soporte
 
 Para problemas con:
 - **Tests generales**: Revisa los logs en Cypress
+- **GitHub Actions**: Verifica que el workflow esté activo en la pestaña "Actions"
+- **Programación de horarios**: Consulta `.github/SCHEDULE_GUIDE.md`
+- **Jenkins**: Verifica que Node.js y Chrome estén instalados en el servidor
 - **Otros**: Contacta al equipo de QA
 

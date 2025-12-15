@@ -1,0 +1,169 @@
+name: Pruebas E2E con Cypress
+
+on:
+  # Ejecutar en push a main/master
+  push:
+    branches:
+      - main
+      - master
+      - develop
+  
+  # Ejecutar en pull requests
+  pull_request:
+    branches:
+      - main
+      - master
+  
+  # Ejecutar manualmente desde GitHub
+  workflow_dispatch:
+  
+  # Programar ejecución automática (horario en UTC)
+  schedule:
+    # Ejemplo: Todos los días a las 2:00 AM UTC (ajusta según tu zona horaria)
+    # Formato: minuto hora día mes día-semana
+    # - cron: '0 2 * * *'  # Todos los días a las 2 AM UTC
+    
+    # Ejemplo: Lunes a Viernes a las 9:00 AM UTC
+    # - cron: '0 9 * * 1-5'
+    
+    # Ejemplo: Todos los días a las 6:00 AM y 6:00 PM UTC
+    - cron: '0 6,18 * * *'
+    
+    # Ejemplo: Solo los lunes a las 8:00 AM UTC
+    # - cron: '0 8 * * 1'
+
+jobs:
+  cypress-run:
+    name: Ejecutar pruebas Cypress
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout código
+        uses: actions/checkout@v4
+      
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+      
+      - name: Instalar dependencias
+        run: npm ci
+      
+      - name: Ejecutar pruebas Cypress
+        id: cypress-run
+        uses: cypress-io/github-action@v6
+        continue-on-error: true
+        with:
+          # Ejecutar en modo headless
+          runTests: true
+          # Browser a usar
+          browser: chrome
+          # Esperar a que el servidor esté listo (si aplica)
+          wait-on: 'https://web.dev.bia.app'
+          wait-on-timeout: 120
+        env:
+          # Variables de entorno si las necesitas
+          CYPRESS_BASE_URL: ${{ secrets.CYPRESS_BASE_URL || 'https://web.dev.bia.app' }}
+      
+      - name: Obtener resultado de pruebas
+        id: test-result
+        if: always()
+        run: |
+          if [ "${{ steps.cypress-run.outcome }}" == "success" ]; then
+            echo "status=success" >> $GITHUB_OUTPUT
+            echo "message=✅ Todas las pruebas pasaron exitosamente" >> $GITHUB_OUTPUT
+            echo "color=good" >> $GITHUB_OUTPUT
+          else
+            echo "status=failure" >> $GITHUB_OUTPUT
+            echo "message=❌ Algunas pruebas fallaron" >> $GITHUB_OUTPUT
+            echo "color=danger" >> $GITHUB_OUTPUT
+          fi
+      
+      - name: Subir videos de pruebas
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cypress-videos
+          path: cypress/videos
+          retention-days: 7
+      
+      - name: Subir screenshots de fallos
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: cypress-screenshots
+          path: cypress/screenshots
+          retention-days: 7
+      
+      - name: Publicar resultados
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: cypress-results
+          path: |
+            cypress/videos
+            cypress/screenshots
+          retention-days: 7
+      
+      - name: Enviar notificación a Slack
+        if: always() && secrets.SLACK_WEBHOOK_URL
+        uses: slackapi/slack-github-action@v1
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "${{ steps.test-result.outputs.message }}",
+              "blocks": [
+                {
+                  "type": "header",
+                  "text": {
+                    "type": "plain_text",
+                    "text": "🧪 Reporte de Pruebas Cypress"
+                  }
+                },
+                {
+                  "type": "section",
+                  "fields": [
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Estado:*\n${{ steps.test-result.outputs.message }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Repositorio:*\n${{ github.repository }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Rama:*\n${{ github.ref_name }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Commit:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}|${GITHUB_SHA:0:7}>"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Ejecutado por:*\n${{ github.actor }}"
+                    },
+                    {
+                      "type": "mrkdwn",
+                      "text": "*Workflow:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|Ver detalles>"
+                    }
+                  ]
+                },
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|📊 Ver resultados completos en GitHub>"
+                  }
+                }
+              ],
+              "attachments": [
+                {
+                  "color": "${{ steps.test-result.outputs.color }}",
+                  "footer": "GitHub Actions"
+                }
+              ]
+            }
+
