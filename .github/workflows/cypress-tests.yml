@@ -107,7 +107,7 @@ jobs:
           retention-days: 7
       
       - name: Enviar notificación a Slack
-        if: always() && secrets.SLACK_WEBHOOK_URL
+        if: always() && secrets.SLACK_WEBHOOK_URL != ''
         uses: slackapi/slack-github-action@v1
         with:
           webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
