@@ -19,6 +19,29 @@ module.exports = defineConfig({
     responseTimeout: 30000,
     pageLoadTimeout: 60000,
     setupNodeEvents(on, config) {
+      // Configurar hook para guardar resultados después de ejecutar las pruebas
+      on('after:run', (results) => {
+        const fs = require('fs');
+        const path = require('path');
+        
+        try {
+          // Crear directorio si no existe
+          const resultsDir = path.join(__dirname, 'cypress', 'results');
+          if (!fs.existsSync(resultsDir)) {
+            fs.mkdirSync(resultsDir, { recursive: true });
+          }
+          
+          // Guardar resultados completos en formato JSON
+          const resultsFile = path.join(resultsDir, 'results.json');
+          fs.writeFileSync(resultsFile, JSON.stringify(results, null, 2));
+          
+          console.log(`Resultados guardados en: ${resultsFile}`);
+          console.log(`Tests: ${results.stats?.tests || 0}, Pasados: ${results.stats?.passes || 0}, Fallidos: ${results.stats?.failures || 0}`);
+        } catch (error) {
+          console.error('Error guardando resultados:', error.message);
+        }
+      });
+      
       // Configuración para Chrome
       on('before:browser:launch', (browser, launchOptions) => {
         if (browser.name === 'chrome') {

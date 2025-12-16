@@ -81,19 +81,90 @@ jobs:
           CYPRESS_responseTimeout: 30000
           CYPRESS_pageLoadTimeout: 60000
       
+      - name: Parsear resultados de Cypress
+        id: parse-results
+        if: always()
+        run: |
+          mkdir -p cypress/results
+          
+          # Intentar usar el script de parseo si existe
+          if [ -f "scripts/parse-cypress-results.js" ]; then
+            node scripts/parse-cypress-results.js || true
+          fi
+          
+          # Leer estadísticas si el script las generó
+          if [ -f "cypress/results/stats.json" ]; then
+            STATS=$(cat cypress/results/stats.json)
+            TESTS=$(echo "$STATS" | grep -oP '"tests":\s*\K\d+' || echo "0")
+            PASSES=$(echo "$STATS" | grep -oP '"passes":\s*\K\d+' || echo "0")
+            FAILURES=$(echo "$STATS" | grep -oP '"failures":\s*\K\d+' || echo "0")
+            
+            echo "tests=$TESTS" >> $GITHUB_OUTPUT
+            echo "passes=$PASSES" >> $GITHUB_OUTPUT
+            echo "failures=$FAILURES" >> $GITHUB_OUTPUT
+            
+            # Leer pruebas fallidas
+            if [ -f "cypress/results/stats.json" ]; then
+              FAILED_TESTS_JSON=$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('cypress/results/stats.json')); console.log(JSON.stringify(data.failedTests || []))" 2>/dev/null || echo "[]")
+              PASSED_TESTS_JSON=$(node -e "const fs=require('fs'); const data=JSON.parse(fs.readFileSync('cypress/results/stats.json')); console.log(JSON.stringify(data.passedTests || []))" 2>/dev/null || echo "[]")
+              
+              echo "failed_tests<<EOF" >> $GITHUB_OUTPUT
+              echo "$FAILED_TESTS_JSON" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+              
+              echo "passed_tests<<EOF" >> $GITHUB_OUTPUT
+              echo "$PASSED_TESTS_JSON" >> $GITHUB_OUTPUT
+              echo "EOF" >> $GITHUB_OUTPUT
+            fi
+            
+            # Determinar estado general
+            if [ "$FAILURES" -eq 0 ] && [ "$TESTS" -gt 0 ]; then
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "message=✅ Todas las $TESTS pruebas pasaron exitosamente" >> $GITHUB_OUTPUT
+              echo "color=good" >> $GITHUB_OUTPUT
+            elif [ "$FAILURES" -gt 0 ]; then
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "message=❌ $FAILURES de $TESTS pruebas fallaron ($PASSES pasaron)" >> $GITHUB_OUTPUT
+              echo "color=danger" >> $GITHUB_OUTPUT
+            else
+              # Fallback: usar el resultado del step de Cypress
+              if [ "${{ steps.cypress-run.outcome }}" == "success" ]; then
+                echo "status=success" >> $GITHUB_OUTPUT
+                echo "message=✅ Todas las pruebas pasaron exitosamente" >> $GITHUB_OUTPUT
+                echo "color=good" >> $GITHUB_OUTPUT
+              else
+                echo "status=failure" >> $GITHUB_OUTPUT
+                echo "message=❌ Algunas pruebas fallaron" >> $GITHUB_OUTPUT
+                echo "color=danger" >> $GITHUB_OUTPUT
+              fi
+              echo "tests=0" >> $GITHUB_OUTPUT
+              echo "passes=0" >> $GITHUB_OUTPUT
+              echo "failures=0" >> $GITHUB_OUTPUT
+            fi
+          else
+            # Fallback: usar el resultado del step de Cypress
+            if [ "${{ steps.cypress-run.outcome }}" == "success" ]; then
+              echo "status=success" >> $GITHUB_OUTPUT
+              echo "message=✅ Todas las pruebas pasaron exitosamente" >> $GITHUB_OUTPUT
+              echo "color=good" >> $GITHUB_OUTPUT
+            else
+              echo "status=failure" >> $GITHUB_OUTPUT
+              echo "message=❌ Algunas pruebas fallaron" >> $GITHUB_OUTPUT
+              echo "color=danger" >> $GITHUB_OUTPUT
+            fi
+            echo "tests=0" >> $GITHUB_OUTPUT
+            echo "passes=0" >> $GITHUB_OUTPUT
+            echo "failures=0" >> $GITHUB_OUTPUT
+            echo "failed_tests=[]" >> $GITHUB_OUTPUT
+            echo "passed_tests=[]" >> $GITHUB_OUTPUT
+          fi
+      
       - name: Obtener resultado de pruebas
         id: test-result
         if: always()
         run: |
-          if [ "${{ steps.cypress-run.outcome }}" == "success" ]; then
-            echo "status=success" >> $GITHUB_OUTPUT
-            echo "message=✅ Todas las pruebas pasaron exitosamente" >> $GITHUB_OUTPUT
-            echo "color=good" >> $GITHUB_OUTPUT
-          else
-            echo "status=failure" >> $GITHUB_OUTPUT
-            echo "message=❌ Algunas pruebas fallaron" >> $GITHUB_OUTPUT
-            echo "color=danger" >> $GITHUB_OUTPUT
-          fi
+          # Este step ahora solo usa los outputs del step anterior
+          echo "Usando resultados parseados del step anterior"
       
       - name: Subir videos de pruebas
         uses: actions/upload-artifact@v4
@@ -121,6 +192,214 @@ jobs:
             cypress/screenshots
           retention-days: 7
       
+      - name: Mostrar resumen de pruebas fallidas
+        if: failure()
+        run: |
+          echo "## ❌ Pruebas Fallidas" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -f "cypress/results/stats.json" ]; then
+            node << 'NODE_SCRIPT'
+          const fs = require('fs');
+          try {
+            const data = JSON.parse(fs.readFileSync('cypress/results/stats.json', 'utf8'));
+            const failedTests = data.failedTests || [];
+            
+            if (failedTests.length > 0) {
+              console.log('### Detalles de Pruebas Fallidas:\n');
+              failedTests.forEach((test, index) => {
+                const testName = typeof test === 'string' ? test : (test.name || 'Test sin nombre');
+                const error = typeof test === 'object' && test.error ? test.error : '';
+                
+                console.log(`${index + 1}. **${testName}**`);
+                if (error) {
+                  const shortError = error.length > 200 ? error.substring(0, 200) + '...' : error;
+                  console.log(`   \`\`\`\n${shortError}\n\`\`\``);
+                }
+                console.log('');
+              });
+            } else {
+              console.log('No se encontraron detalles de pruebas fallidas en el archivo JSON.');
+            }
+          } catch (error) {
+            console.log('Error leyendo estadísticas:', error.message);
+          }
+          NODE_SCRIPT
+          else
+            echo "No se encontró archivo de estadísticas. Revisa los logs de Cypress arriba." >> $GITHUB_STEP_SUMMARY
+          fi
+      
+      - name: Generar mensaje de Slack
+        id: generate-slack-message
+        if: always()
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_SERVER_URL: ${{ github.server_url }}
+          STATUS_MESSAGE: ${{ steps.parse-results.outputs.message }}
+          COLOR: ${{ steps.parse-results.outputs.color }}
+          TESTS: ${{ steps.parse-results.outputs.tests }}
+          PASSES: ${{ steps.parse-results.outputs.passes }}
+          FAILURES: ${{ steps.parse-results.outputs.failures }}
+        run: |
+          # Ejecutar script para generar payload de Slack
+          if [ -f "scripts/generate-slack-message.js" ]; then
+            node scripts/generate-slack-message.js || true
+          fi
+          
+          # Si no se generó el payload, crear uno con los valores reales
+          if [ ! -f "slack-payload.json" ]; then
+            node << 'NODE_SCRIPT'
+          const fs = require('fs');
+          
+          const statusMessage = process.env.STATUS_MESSAGE || 'Pruebas completadas';
+          const color = process.env.COLOR || 'good';
+          const tests = parseInt(process.env.TESTS || '0');
+          const passes = parseInt(process.env.PASSES || '0');
+          const failures = parseInt(process.env.FAILURES || '0');
+          
+          // Leer pruebas fallidas si existen
+          let failedTests = [];
+          try {
+            if (fs.existsSync('cypress/results/stats.json')) {
+              const statsData = JSON.parse(fs.readFileSync('cypress/results/stats.json', 'utf8'));
+              failedTests = statsData.failedTests || [];
+            }
+          } catch (e) {
+            console.error('Error leyendo stats.json:', e.message);
+          }
+          
+          const payload = {
+            text: statusMessage,
+            blocks: [
+              {
+                type: 'header',
+                text: {
+                  type: 'plain_text',
+                  text: '🧪 Reporte de Pruebas Cypress'
+                }
+              },
+              {
+                type: 'section',
+                fields: [
+                  {
+                    type: 'mrkdwn',
+                    text: `*Estado:*\n${statusMessage}`
+                  },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Repositorio:*\n${process.env.GITHUB_REPOSITORY}`
+                  },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Rama:*\n${process.env.GITHUB_REF_NAME}`
+                  },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Commit:*\n<${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/commit/${process.env.GITHUB_SHA}|${process.env.GITHUB_SHA.substring(0, 7)}>`
+                  },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Ejecutado por:*\n${process.env.GITHUB_ACTOR}`
+                  },
+                  {
+                    type: 'mrkdwn',
+                    text: `*Workflow:*\n<${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}|Ver detalles>`
+                  }
+                ]
+              }
+            ],
+            attachments: [
+              {
+                color: color,
+                footer: 'GitHub Actions'
+              }
+            ]
+          };
+          
+          // Agregar estadísticas
+          if (tests > 0) {
+            payload.blocks.push({
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `*📊 Estadísticas:*\n• Total: ${tests}\n• ✅ Pasaron: ${passes}\n• ❌ Fallaron: ${failures}`
+              }
+            });
+          }
+          
+          // Agregar pruebas fallidas si las hay - MOSTRAR TODAS
+          if (failedTests.length > 0) {
+            // Título destacado
+            payload.blocks.push({
+              type: 'section',
+              text: {
+                type: 'mrkdwn',
+                text: `*❌ CASOS QUE FALLARON (${failedTests.length}):*`
+              }
+            });
+            
+            // Dividir en bloques si hay muchas pruebas
+            const testsPerBlock = 15;
+            const totalBlocks = Math.ceil(failedTests.length / testsPerBlock);
+            
+            for (let blockIndex = 0; blockIndex < totalBlocks; blockIndex++) {
+              const startIndex = blockIndex * testsPerBlock;
+              const endIndex = Math.min(startIndex + testsPerBlock, failedTests.length);
+              
+              let failedTestsText = '';
+              
+              for (let i = startIndex; i < endIndex; i++) {
+                const test = failedTests[i];
+                const testName = typeof test === 'string' ? test : (test.name || 'Test sin nombre');
+                
+                // Limpiar nombre del test
+                const cleanTestName = testName
+                  .replace(/cypress\/e2e\//g, '')
+                  .replace(/\.cy\.js/g, '')
+                  .replace(/\//g, ' > ')
+                  .trim();
+                
+                failedTestsText += `\n*${i + 1}.* \`${cleanTestName}\``;
+                
+                if (typeof test === 'object' && test.error) {
+                  const error = test.error.length > 200 ? test.error.substring(0, 200) + '...' : test.error;
+                  const cleanError = error.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+                  failedTestsText += `\n   _${cleanError}_`;
+                }
+              }
+              
+              payload.blocks.push({
+                type: 'section',
+                text: {
+                  type: 'mrkdwn',
+                  text: failedTestsText
+                }
+              });
+            }
+            
+            // Separador
+            payload.blocks.push({
+              type: 'divider'
+            });
+          }
+          
+          payload.blocks.push({
+            type: 'section',
+            text: {
+              type: 'mrkdwn',
+              text: `<${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}|📊 Ver resultados completos en GitHub>`
+            }
+          });
+          
+          fs.writeFileSync('slack-payload.json', JSON.stringify(payload, null, 2));
+          console.log('Payload de Slack generado exitosamente');
+          NODE_SCRIPT
+          fi
+      
       - name: Enviar notificación a Slack
         if: always()
         continue-on-error: true
@@ -128,59 +407,5 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
-          payload: |
-            {
-              "text": "${{ steps.test-result.outputs.message }}",
-              "blocks": [
-                {
-                  "type": "header",
-                  "text": {
-                    "type": "plain_text",
-                    "text": "🧪 Reporte de Pruebas Cypress"
-                  }
-                },
-                {
-                  "type": "section",
-                  "fields": [
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Estado:*\n${{ steps.test-result.outputs.message }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Repositorio:*\n${{ github.repository }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Rama:*\n${{ github.ref_name }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Commit:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/commit/${GITHUB_SHA}|${GITHUB_SHA:0:7}>"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Ejecutado por:*\n${{ github.actor }}"
-                    },
-                    {
-                      "type": "mrkdwn",
-                      "text": "*Workflow:*\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|Ver detalles>"
-                    }
-                  ]
-                },
-                {
-                  "type": "section",
-                  "text": {
-                    "type": "mrkdwn",
-                    "text": "<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|📊 Ver resultados completos en GitHub>"
-                  }
-                }
-              ],
-              "attachments": [
-                {
-                  "color": "${{ steps.test-result.outputs.color }}",
-                  "footer": "GitHub Actions"
-                }
-              ]
-            }
+          payload-path: slack-payload.json
 
