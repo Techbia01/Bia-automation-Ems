@@ -20,13 +20,27 @@ let passedTests = [];
 
 try {
   if (fs.existsSync('cypress/results/stats.json')) {
-    const data = JSON.parse(fs.readFileSync('cypress/results/stats.json', 'utf8'));
+    console.log('Leyendo archivo cypress/results/stats.json...');
+    const fileContent = fs.readFileSync('cypress/results/stats.json', 'utf8');
+    const data = JSON.parse(fileContent);
     stats = data.stats || stats;
     failedTests = data.failedTests || [];
     passedTests = data.passedTests || [];
+    console.log(`Estadísticas leídas: ${stats.tests} tests, ${stats.passes} pasaron, ${stats.failures} fallaron`);
+    console.log(`Pruebas fallidas encontradas: ${failedTests.length}`);
+  } else {
+    console.log('⚠️ Archivo cypress/results/stats.json no encontrado');
+    // Intentar leer desde variables de entorno como fallback
+    if (process.env.TESTS) {
+      stats.tests = parseInt(process.env.TESTS) || 0;
+      stats.passes = parseInt(process.env.PASSES) || 0;
+      stats.failures = parseInt(process.env.FAILURES) || 0;
+      console.log(`Usando estadísticas de variables de entorno: ${stats.tests} tests`);
+    }
   }
 } catch (error) {
   console.error('Error leyendo estadísticas:', error.message);
+  console.error('Stack:', error.stack);
 }
 
 // Leer variables de entorno de GitHub Actions
@@ -218,8 +232,31 @@ const payload = {
 
 // Escribir payload a archivo
 const outputFile = process.env.SLACK_PAYLOAD_FILE || 'slack-payload.json';
-fs.writeFileSync(outputFile, JSON.stringify(payload, null, 2));
-
-console.log('Payload de Slack generado exitosamente');
-console.log(JSON.stringify(payload, null, 2));
+try {
+  fs.writeFileSync(outputFile, JSON.stringify(payload, null, 2));
+  console.log(`✅ Payload de Slack generado exitosamente en: ${outputFile}`);
+  console.log(`Tamaño del payload: ${JSON.stringify(payload).length} caracteres`);
+  console.log(`Número de bloques: ${payload.blocks.length}`);
+  
+  // Validar que el payload sea válido
+  if (!payload.text) {
+    console.error('⚠️ ADVERTENCIA: payload.text está vacío');
+  }
+  if (!payload.blocks || payload.blocks.length === 0) {
+    console.error('⚠️ ADVERTENCIA: payload.blocks está vacío');
+  }
+  
+  // Mostrar resumen del payload
+  console.log('\n=== Resumen del Payload ===');
+  console.log(`Texto: ${payload.text}`);
+  console.log(`Bloques: ${payload.blocks.length}`);
+  console.log(`Color: ${payload.attachments[0]?.color || 'no definido'}`);
+  if (failedTests.length > 0) {
+    console.log(`Pruebas fallidas incluidas: ${failedTests.length}`);
+  }
+} catch (error) {
+  console.error('❌ Error escribiendo payload:', error.message);
+  console.error('Stack:', error.stack);
+  process.exit(1);
+}
 

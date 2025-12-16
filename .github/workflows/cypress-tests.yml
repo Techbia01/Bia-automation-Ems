@@ -245,13 +245,32 @@ jobs:
           PASSES: ${{ steps.parse-results.outputs.passes }}
           FAILURES: ${{ steps.parse-results.outputs.failures }}
         run: |
+          echo "=== Generando mensaje de Slack ==="
+          echo "STATUS_MESSAGE: $STATUS_MESSAGE"
+          echo "COLOR: $COLOR"
+          echo "TESTS: $TESTS"
+          echo "PASSES: $PASSES"
+          echo "FAILURES: $FAILURES"
+          
+          # Verificar si existe el archivo de estadísticas
+          if [ -f "cypress/results/stats.json" ]; then
+            echo "Archivo stats.json encontrado"
+            cat cypress/results/stats.json | head -20
+          else
+            echo "⚠️ Archivo stats.json NO encontrado"
+          fi
+          
           # Ejecutar script para generar payload de Slack
           if [ -f "scripts/generate-slack-message.js" ]; then
-            node scripts/generate-slack-message.js || true
+            echo "Ejecutando script generate-slack-message.js..."
+            node scripts/generate-slack-message.js || echo "⚠️ Error ejecutando script, usando fallback"
+          else
+            echo "⚠️ Script generate-slack-message.js NO encontrado"
           fi
           
           # Si no se generó el payload, crear uno con los valores reales
           if [ ! -f "slack-payload.json" ]; then
+            echo "Generando payload de fallback..."
             node << 'NODE_SCRIPT'
           const fs = require('fs');
           
@@ -400,6 +419,31 @@ jobs:
           NODE_SCRIPT
           fi
       
+      - name: Verificar payload de Slack
+        if: always()
+        run: |
+          echo "=== Verificando payload de Slack ==="
+          if [ -f "slack-payload.json" ]; then
+            echo "✅ Archivo slack-payload.json encontrado"
+            echo "Tamaño del archivo:"
+            ls -lh slack-payload.json
+            echo ""
+            echo "Contenido del payload (primeras 50 líneas):"
+            head -50 slack-payload.json
+          else
+            echo "❌ ERROR: Archivo slack-payload.json NO encontrado"
+            echo "Listando archivos en el directorio:"
+            ls -la
+            exit 1
+          fi
+          
+          # Verificar que el webhook esté configurado
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "⚠️ ADVERTENCIA: SLACK_WEBHOOK_URL no está configurado"
+          else
+            echo "✅ SLACK_WEBHOOK_URL está configurado"
+          fi
+      
       - name: Enviar notificación a Slack
         if: always()
         continue-on-error: true
@@ -408,4 +452,38 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
           payload-path: slack-payload.json
+      
+      - name: Verificar resultado de envío a Slack
+        if: always()
+        run: |
+          echo "=== Verificación de envío a Slack ==="
+          echo ""
+          echo "📋 Checklist de diagnóstico:"
+          echo ""
+          
+          # Verificar webhook
+          if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "❌ SLACK_WEBHOOK_URL NO está configurado"
+            echo "   → Ve a: Settings → Secrets → Actions"
+            echo "   → Crea un secret llamado: SLACK_WEBHOOK_URL"
+            echo "   → Pega tu webhook URL de Slack"
+          else
+            echo "✅ SLACK_WEBHOOK_URL está configurado"
+          fi
+          
+          # Verificar payload
+          if [ -f "slack-payload.json" ]; then
+            echo "✅ slack-payload.json generado correctamente"
+            PAYLOAD_SIZE=$(wc -c < slack-payload.json)
+            echo "   Tamaño: ${PAYLOAD_SIZE} bytes"
+          else
+            echo "❌ slack-payload.json NO se generó"
+            echo "   → Revisa los logs del paso 'Generar mensaje de Slack'"
+          fi
+          
+          echo ""
+          echo "🔍 Para más ayuda:"
+          echo "1. Revisa los logs del paso 'Enviar notificación a Slack'"
+          echo "2. Verifica que el webhook URL sea válido en Slack"
+          echo "3. Prueba el webhook manualmente con curl si es necesario"
 
