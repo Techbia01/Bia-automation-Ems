@@ -1,6 +1,6 @@
 # Dependencies
 node_modules/
-package-lock.json
+# package-lock.json - Necesario para GitHub Actions
 
 # Cypress
 cypress/videos/
