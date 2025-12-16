@@ -421,6 +421,7 @@ jobs:
       
       - name: Verificar payload de Slack
         if: always()
+        continue-on-error: true
         run: |
           echo "=== Verificando payload de Slack ==="
           if [ -f "slack-payload.json" ]; then
@@ -434,12 +435,30 @@ jobs:
             echo "❌ ERROR: Archivo slack-payload.json NO encontrado"
             echo "Listando archivos en el directorio:"
             ls -la
-            exit 1
+            echo "⚠️ Intentando crear payload mínimo..."
+            # Crear un payload mínimo de emergencia
+            cat > slack-payload.json << 'EOF'
+          {
+            "text": "Pruebas de Cypress completadas",
+            "blocks": [
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*🧪 Reporte de Pruebas Cypress*\n\nLas pruebas se completaron. Revisa los detalles en GitHub Actions."
+                }
+              }
+            ]
+          }
+          EOF
           fi
           
           # Verificar que el webhook esté configurado
           if [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
-            echo "⚠️ ADVERTENCIA: SLACK_WEBHOOK_URL no está configurado"
+            echo "❌ ERROR CRÍTICO: SLACK_WEBHOOK_URL no está configurado"
+            echo "Ve a: Settings → Secrets → Actions → New repository secret"
+            echo "Nombre: SLACK_WEBHOOK_URL"
+            echo "Valor: Tu webhook URL de Slack"
           else
             echo "✅ SLACK_WEBHOOK_URL está configurado"
           fi
@@ -452,13 +471,13 @@ jobs:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         with:
           payload-path: slack-payload.json
+        id: slack-notification
       
       - name: Verificar resultado de envío a Slack
         if: always()
+        continue-on-error: true
         run: |
           echo "=== Verificación de envío a Slack ==="
-          echo ""
-          echo "📋 Checklist de diagnóstico:"
           echo ""
           
           # Verificar webhook
@@ -466,7 +485,9 @@ jobs:
             echo "❌ SLACK_WEBHOOK_URL NO está configurado"
             echo "   → Ve a: Settings → Secrets → Actions"
             echo "   → Crea un secret llamado: SLACK_WEBHOOK_URL"
-            echo "   → Pega tu webhook URL de Slack"
+            echo "   → Pega tu webhook URL de Slack (formato: https://hooks.slack.com/services/...)"
+            echo ""
+            echo "⚠️ Las notificaciones NO se enviarán hasta que configures el secret"
           else
             echo "✅ SLACK_WEBHOOK_URL está configurado"
           fi
@@ -481,9 +502,23 @@ jobs:
             echo "   → Revisa los logs del paso 'Generar mensaje de Slack'"
           fi
           
+          # Verificar si se envió
+          if [ "${{ steps.slack-notification.outcome }}" == "success" ]; then
+            echo "✅ Notificación enviada exitosamente a Slack"
+          elif [ "${{ steps.slack-notification.outcome }}" == "failure" ]; then
+            echo "❌ Error al enviar notificación a Slack"
+            echo "   → Revisa los logs del paso 'Enviar notificación a Slack'"
+            echo "   → Verifica que el webhook URL sea válido"
+          elif [ -z "${{ secrets.SLACK_WEBHOOK_URL }}" ]; then
+            echo "⚠️ Paso de Slack no se ejecutó (webhook no configurado)"
+          else
+            echo "⚠️ Estado desconocido del envío"
+          fi
+          
           echo ""
           echo "🔍 Para más ayuda:"
           echo "1. Revisa los logs del paso 'Enviar notificación a Slack'"
           echo "2. Verifica que el webhook URL sea válido en Slack"
-          echo "3. Prueba el webhook manualmente con curl si es necesario"
+          echo "3. Prueba el webhook manualmente con:"
+          echo "   curl -X POST -H 'Content-type: application/json' --data '{\"text\":\"Test\"}' TU_WEBHOOK_URL"
 
