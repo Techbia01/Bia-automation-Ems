@@ -179,16 +179,37 @@ EOF
           
           # Enviar a Slack
           echo "📤 Enviando notificación a Slack..."
+          echo "🔗 Webhook URL (primeros 50 caracteres): ${SLACK_WEBHOOK_URL:0:50}..."
+          echo "📏 Tamaño del payload: $(echo "$PAYLOAD" | wc -c) caracteres"
+          
           HTTP_CODE=$(curl -s -o /tmp/slack_response.txt -w "%{http_code}" \
             -X POST \
             -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
-            "$SLACK_WEBHOOK_URL")
+            --max-time 10 \
+            --fail-with-body \
+            "$SLACK_WEBHOOK_URL" 2>&1)
           
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Notificación enviada exitosamente a Slack"
+          CURL_EXIT=$?
+          
+          echo "📊 Resultado de curl:"
+          echo "  Exit code: $CURL_EXIT"
+          echo "  HTTP code: $HTTP_CODE"
+          
+          if [ $CURL_EXIT -ne 0 ]; then
+            echo "❌ Error de conexión al enviar a Slack"
+            echo "Error completo:"
+            cat /tmp/slack_response.txt || true
+          elif [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Notificación enviada exitosamente a Slack (HTTP 200)"
+            echo "Respuesta de Slack:"
+            cat /tmp/slack_response.txt || echo "(sin respuesta)"
           else
             echo "⚠️ Error al enviar notificación. Código HTTP: $HTTP_CODE"
+            echo "Respuesta de Slack:"
             cat /tmp/slack_response.txt || true
-            # No fallar el workflow si la notificación falla
+            echo ""
+            echo "Payload enviado (primeros 200 caracteres):"
+            echo "$PAYLOAD" | head -c 200
+            echo "..."
           fi
