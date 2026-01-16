@@ -6,9 +6,8 @@ on:
   pull_request:
     branches: [ main, master, develop ]
   schedule:
-    # Ejecutar todos los días a las 2:00 AM UTC
     - cron: '0 2 * * *'
-  workflow_dispatch: # Permite ejecución manual
+  workflow_dispatch:
 
 jobs:
   cypress-run:
@@ -29,49 +28,25 @@ jobs:
         run: npm ci
 
       - name: Asegurar que el directorio de reportes existe
-        run: |
-          mkdir -p cypress/reports
+        run: mkdir -p cypress/reports
 
       - name: Ejecutar pruebas Cypress
-        run: npm run test 2>&1 | tee cypress-test-output.log
+        run: npm run test
         continue-on-error: true
         env:
           CYPRESS_BASE_URL: https://web.dev.bia.app
           NODE_TLS_REJECT_UNAUTHORIZED: 0
-          CYPRESS_VERIFY_TIMEOUT: 120000
 
       - name: Generar reportes después de las pruebas
         if: always()
         run: |
           echo "📊 Generando reportes..."
-          echo "📂 Contenido del directorio cypress/reports:"
-          ls -la cypress/reports/ || echo "El directorio no existe o está vacío"
-          
-          # Verificar si hay archivos JSON de reporte
-          echo "🔍 Buscando archivos JSON..."
-          JSON_FILES=$(find cypress/reports -name "*.json" -type f 2>/dev/null | head -10)
-          if [ -n "$JSON_FILES" ]; then
-            echo "✅ Se encontraron archivos JSON de reporte:"
-            echo "$JSON_FILES"
-            echo ""
-            echo "🔄 Fusionando reportes..."
-            npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes"
-            
-            # Verificar si se generó el report.json
-            if [ -f "cypress/reports/report.json" ]; then
-              echo "✅ report.json generado exitosamente"
-              echo "📏 Tamaño del archivo: $(du -h cypress/reports/report.json | cut -f1)"
-              echo "🔄 Generando reporte HTML..."
-              npm run generate:report || echo "⚠️ No se pudo generar reporte HTML"
-            else
-              echo "⚠️ No se generó report.json después del merge"
-              echo "📂 Archivos en cypress/reports después del merge:"
-              ls -la cypress/reports/ || true
-            fi
+          if ls cypress/reports/*.json 1>/dev/null 2>&1; then
+            echo "✅ Archivos JSON encontrados"
+            npm run merge:reports || true
+            npm run generate:report || true
           else
-            echo "⚠️ No se encontraron archivos JSON de reporte."
-            echo "📂 Buscando en otras ubicaciones posibles..."
-            find . -name "*.json" -path "*/cypress/*" -type f 2>/dev/null | head -5 || echo "No se encontraron archivos JSON"
+            echo "⚠️ No se encontraron archivos JSON"
           fi
 
       - name: Publicar reporte HTML
@@ -93,7 +68,7 @@ jobs:
             cypress/screenshots/**/*.png
           retention-days: 7
 
-      - name: Generar y enviar notificación detallada a Slack
+      - name: Enviar notificación a Slack
         if: always()
         continue-on-error: true
         env:
@@ -103,61 +78,21 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_SERVER_URL: ${{ github.server_url }}
           GITHUB_SHA: ${{ github.sha }}
-          GITHUB_WORKFLOW: ${{ github.workflow }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          echo "🔔 Preparando notificación a Slack..."
-          echo "📋 Variables de entorno:"
-          echo "  GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
-          echo "  GITHUB_REF_NAME: $GITHUB_REF_NAME"
-          echo "  GITHUB_RUN_ID: $GITHUB_RUN_ID"
-          
-          # Verificar que el webhook URL está configurado
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "❌ ERROR: SLACK_WEBHOOK_URL no está configurado."
-            echo "   Ve a Settings → Secrets → Actions y configura SLACK_WEBHOOK_URL"
+            echo "⚠️ SLACK_WEBHOOK_URL no configurado"
             exit 0
           fi
           
-          echo "✅ Webhook URL configurado (longitud: ${#SLACK_WEBHOOK_URL} caracteres)"
-          
-          # Intentar generar payload detallado, si falla usar básico
-          PAYLOAD=""
           if [ -f "scripts/generate-slack-message.js" ] && [ -f "cypress/reports/report.json" ]; then
-            echo "📝 Intentando generar mensaje detallado..."
-            SCRIPT_OUTPUT=$(node scripts/generate-slack-message.js 2>/dev/null)
-            if [ $? -eq 0 ] && [ -n "$SCRIPT_OUTPUT" ] && echo "$SCRIPT_OUTPUT" | grep -q '{'; then
-              PAYLOAD="$SCRIPT_OUTPUT"
-              echo "✅ Payload detallado generado"
-            fi
+            PAYLOAD=$(node scripts/generate-slack-message.js 2>/dev/null)
           fi
           
-          # Si no hay payload detallado, usar básico
-          if [ -z "$PAYLOAD" ]; then
-            echo "📝 Generando notificación básica..."
-            PAYLOAD="{\"text\":\"🧪 Reporte de Pruebas Cypress - EMS\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*🧪 Reporte de Pruebas Cypress*\\n\\n*Repositorio:* $GITHUB_REPOSITORY\\n*Rama:* $GITHUB_REF_NAME\\n*Commit:* ${GITHUB_SHA:0:7}\\n*Ejecutado por:* $GITHUB_ACTOR\\n\\n<$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|📋 Ver ejecución completa>\"}}]}"
+          if [ -z "$PAYLOAD" ] || ! echo "$PAYLOAD" | grep -q '{'; then
+            REPO_URL="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            COMMIT_SHORT="${GITHUB_SHA:0:7}"
+            PAYLOAD="{\"text\":\"🧪 Pruebas Cypress - EMS\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*🧪 Reporte de Pruebas Cypress*\\n\\n*Repositorio:* $GITHUB_REPOSITORY\\n*Rama:* $GITHUB_REF_NAME\\n*Commit:* $COMMIT_SHORT\\n*Ejecutado por:* $GITHUB_ACTOR\\n\\n<$REPO_URL|📋 Ver ejecución completa>\"}}]}"
           fi
           
-          # Enviar a Slack
-          echo "📤 Enviando notificación a Slack..."
-          echo "Payload size: $(echo "$PAYLOAD" | wc -c) bytes"
-          
-          RESPONSE=$(curl -s -w "\n%{http_code}" \
-            -X POST \
-            -H 'Content-type: application/json' \
-            --data "$PAYLOAD" \
-            --max-time 10 \
-            "$SLACK_WEBHOOK_URL" 2>&1)
-          
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | sed '$d')
-          
-          echo "HTTP Code: $HTTP_CODE"
-          echo "Response: $BODY"
-          
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Notificación enviada exitosamente a Slack"
-          else
-            echo "❌ Error al enviar. HTTP: $HTTP_CODE"
-            echo "Respuesta: $BODY"
-          fi
+          curl -X POST -H 'Content-type: application/json' --data "$PAYLOAD" "$SLACK_WEBHOOK_URL" || echo "Error al enviar"
