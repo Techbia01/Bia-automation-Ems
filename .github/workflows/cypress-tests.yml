@@ -106,7 +106,6 @@ jobs:
           GITHUB_WORKFLOW: ${{ github.workflow }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          set -e  # Salir si hay errores, pero continuar con el workflow
           echo "🔔 Preparando notificación a Slack..."
           echo "📋 Variables de entorno:"
           echo "  GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
