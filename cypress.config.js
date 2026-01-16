@@ -10,8 +10,8 @@ module.exports = defineConfig({
     inlineAssets: true,
     saveAllAttempts: false,
     reportDir: 'cypress/reports',
-    overwrite: true, // Cambiar a true para asegurar que se generen los reportes
-    html: false, // No generar HTML aquí, lo haremos después con merge
+    overwrite: true, // Asegurar que se generen los reportes
+    html: true, // Generar HTML también (se puede regenerar después con merge)
     json: true, // Asegurar que se generen JSON
   },
   e2e: {
