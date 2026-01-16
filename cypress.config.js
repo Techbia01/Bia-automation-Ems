@@ -10,9 +10,9 @@ module.exports = defineConfig({
     inlineAssets: true,
     saveAllAttempts: false,
     reportDir: 'cypress/reports',
-    overwrite: false,
-    html: true,
-    json: true,
+    overwrite: true, // Cambiar a true para asegurar que se generen los reportes
+    html: false, // No generar HTML aquí, lo haremos después con merge
+    json: true, // Asegurar que se generen JSON
   },
   e2e: {
     baseUrl: 'https://web.dev.bia.app',
