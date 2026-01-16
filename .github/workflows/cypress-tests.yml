@@ -130,32 +130,39 @@ jobs:
             ls -la cypress/reports/*.json 2>/dev/null || echo "No se encontraron archivos JSON"
           fi
           
-          PAYLOAD=$(node scripts/generate-slack-message.js 2>&1)
+          # Ejecutar script y capturar output
+          echo "Ejecutando script de generación de mensaje..."
+          SCRIPT_OUTPUT=$(node scripts/generate-slack-message.js 2> /tmp/script_errors.txt)
           PAYLOAD_EXIT_CODE=$?
           
-          if [ $PAYLOAD_EXIT_CODE -ne 0 ] || [ -z "$PAYLOAD" ]; then
-            echo "⚠️ Error al generar payload (exit code: $PAYLOAD_EXIT_CODE)"
-            echo "Output del script:"
-            echo "$PAYLOAD"
-            echo "⚠️ Enviando notificación básica..."
-            PAYLOAD=$(cat <<EOF
-          {
-            "text": "🧪 Reporte de Pruebas Cypress - EMS",
-            "blocks": [
-              {
-                "type": "section",
-                "text": {
-                  "type": "mrkdwn",
-                  "text": "*🧪 Reporte de Pruebas Cypress*\n\n*Repositorio:* $GITHUB_REPOSITORY\n*Rama:* $GITHUB_REF_NAME\n*Commit:* ${GITHUB_SHA:0:7}\n*Ejecutado por:* $GITHUB_ACTOR\n\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|📋 Ver ejecución completa>"
-                }
-              }
-            ]
-          }
-          EOF
-          )
+          # Mostrar errores si los hay (pero no fallar)
+          if [ -s /tmp/script_errors.txt ]; then
+            echo "ℹ️ Mensajes del script:"
+            cat /tmp/script_errors.txt
+          fi
+          
+          # Intentar usar el output del script si existe y no está vacío
+          if [ $PAYLOAD_EXIT_CODE -eq 0 ] && [ -n "$SCRIPT_OUTPUT" ] && echo "$SCRIPT_OUTPUT" | grep -q '{'; then
+            PAYLOAD="$SCRIPT_OUTPUT"
+            echo "✅ Payload generado exitosamente desde script"
+            echo "Tamaño: $(echo "$PAYLOAD" | wc -c) caracteres"
           else
-            echo "✅ Payload generado exitosamente"
-            echo "Tamaño del payload: $(echo "$PAYLOAD" | wc -c) caracteres"
+            echo "⚠️ Usando notificación básica (script falló o no generó output válido)"
+            PAYLOAD=$(cat <<EOF
+{
+  "text": "🧪 Reporte de Pruebas Cypress - EMS",
+  "blocks": [
+    {
+      "type": "section",
+      "text": {
+        "type": "mrkdwn",
+        "text": "*🧪 Reporte de Pruebas Cypress*\n\n*Repositorio:* $GITHUB_REPOSITORY\n*Rama:* $GITHUB_REF_NAME\n*Commit:* ${GITHUB_SHA:0:7}\n*Ejecutado por:* $GITHUB_ACTOR\n\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|📋 Ver ejecución completa>"
+      }
+    }
+  ]
+}
+EOF
+)
           fi
           
           # Enviar a Slack
