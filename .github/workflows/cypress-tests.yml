@@ -33,7 +33,7 @@ jobs:
           mkdir -p cypress/reports
 
       - name: Ejecutar pruebas Cypress
-        run: npm run test
+        run: npm run test 2>&1 | tee cypress-test-output.log
         continue-on-error: true
         env:
           CYPRESS_BASE_URL: https://web.dev.bia.app
