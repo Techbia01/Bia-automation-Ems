@@ -44,22 +44,34 @@ jobs:
         if: always()
         run: |
           echo "📊 Generando reportes..."
+          echo "📂 Contenido del directorio cypress/reports:"
+          ls -la cypress/reports/ || echo "El directorio no existe o está vacío"
           
           # Verificar si hay archivos JSON de reporte
-          if ls cypress/reports/*.json 1> /dev/null 2>&1; then
-            echo "✅ Se encontraron archivos JSON de reporte"
+          echo "🔍 Buscando archivos JSON..."
+          JSON_FILES=$(find cypress/reports -name "*.json" -type f 2>/dev/null | head -10)
+          if [ -n "$JSON_FILES" ]; then
+            echo "✅ Se encontraron archivos JSON de reporte:"
+            echo "$JSON_FILES"
+            echo ""
+            echo "🔄 Fusionando reportes..."
             npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes"
             
             # Verificar si se generó el report.json
             if [ -f "cypress/reports/report.json" ]; then
-              echo "✅ Generando reporte HTML..."
+              echo "✅ report.json generado exitosamente"
+              echo "📏 Tamaño del archivo: $(du -h cypress/reports/report.json | cut -f1)"
+              echo "🔄 Generando reporte HTML..."
               npm run generate:report || echo "⚠️ No se pudo generar reporte HTML"
             else
               echo "⚠️ No se generó report.json después del merge"
+              echo "📂 Archivos en cypress/reports después del merge:"
+              ls -la cypress/reports/ || true
             fi
           else
-            echo "⚠️ No se encontraron archivos JSON de reporte. Las pruebas pueden haber fallado antes de generar reportes."
-            echo "   Esto puede ocurrir si las pruebas fallan muy temprano o hay un error de configuración."
+            echo "⚠️ No se encontraron archivos JSON de reporte."
+            echo "📂 Buscando en otras ubicaciones posibles..."
+            find . -name "*.json" -path "*/cypress/*" -type f 2>/dev/null | head -5 || echo "No se encontraron archivos JSON"
           fi
 
       - name: Publicar reporte HTML

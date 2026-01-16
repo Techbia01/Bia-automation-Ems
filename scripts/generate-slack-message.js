@@ -129,7 +129,23 @@ if (celebrationMessage) {
 // Construir texto de resumen
 let summaryText = `*📊 Resumen General*\n`;
 if (!hasReportData) {
-  summaryText += `• ⚠️ Reporte no disponible\n• Revisa los logs de GitHub Actions\n• Verifica la ejecución de las pruebas`;
+  // Intentar leer información básica de los logs o archivos disponibles
+  const reportsDir = path.join(__dirname, '../cypress/reports');
+  let jsonFilesFound = [];
+  try {
+    if (fs.existsSync(reportsDir)) {
+      const files = fs.readdirSync(reportsDir);
+      jsonFilesFound = files.filter(f => f.endsWith('.json'));
+    }
+  } catch (e) {
+    // Ignorar errores
+  }
+  
+  if (jsonFilesFound.length > 0) {
+    summaryText += `• ⚠️ Reporte no disponible (se encontraron ${jsonFilesFound.length} archivo(s) JSON pero no se pudo leer)\n• Archivos encontrados: ${jsonFilesFound.slice(0, 3).join(', ')}\n• Revisa los logs de GitHub Actions`;
+  } else {
+    summaryText += `• ⚠️ Reporte no disponible\n• No se encontraron archivos JSON de reporte\n• Las pruebas pueden haber fallado antes de generar reportes\n• Revisa los logs de GitHub Actions`;
+  }
 } else {
   summaryText += `• Total: *${totalTests}*\n• ✅ Exitosas: *${passedTests}*\n• ❌ Fallidas: *${failedTests}*\n• ⏸️ Pendientes: *${pendingTests}*`;
 }
@@ -245,9 +261,14 @@ const repository = process.env.GITHUB_REPOSITORY || '';
 const serverUrl = process.env.GITHUB_SERVER_URL || 'https://github.com';
 
 // Agregar enlaces con mejor formato
-const linksText = failedTests === 0
-  ? `*🔗 Enlaces Útiles:*\n• <${serverUrl}/${repository}/actions/runs/${runId}|📋 Ver ejecución completa>\n• <${serverUrl}/${repository}/actions/runs/${runId}|📊 Descargar reporte HTML>\n\n*💡 Tip:* ¡Mantén este nivel de calidad!`
-  : `*🔗 Enlaces Útiles:*\n• <${serverUrl}/${repository}/actions/runs/${runId}|📋 Ver ejecución completa>\n• <${serverUrl}/${repository}/actions/runs/${runId}|📊 Descargar reporte HTML>`;
+let linksText = '';
+if (!hasReportData) {
+  linksText = `*🔗 Enlaces Útiles:*\n• <${serverUrl}/${repository}/actions/runs/${runId}|📋 Ver ejecución completa y logs>\n• <${serverUrl}/${repository}/actions/runs/${runId}|📊 Descargar artefactos (videos/screenshots)>\n\n*💡 Nota:* Revisa los logs del paso "Ejecutar pruebas Cypress" para ver qué pruebas se ejecutaron y cuáles fallaron.`;
+} else if (failedTests === 0) {
+  linksText = `*🔗 Enlaces Útiles:*\n• <${serverUrl}/${repository}/actions/runs/${runId}|📋 Ver ejecución completa>\n• <${serverUrl}/${repository}/actions/runs/${runId}|📊 Descargar reporte HTML>\n\n*💡 Tip:* ¡Mantén este nivel de calidad!`;
+} else {
+  linksText = `*🔗 Enlaces Útiles:*\n• <${serverUrl}/${repository}/actions/runs/${runId}|📋 Ver ejecución completa>\n• <${serverUrl}/${repository}/actions/runs/${runId}|📊 Descargar reporte HTML y videos de fallos>`;
+}
 
 blocks.push({
   type: 'section',
