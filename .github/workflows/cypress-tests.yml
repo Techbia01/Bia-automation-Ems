@@ -28,6 +28,10 @@ jobs:
       - name: Instalar dependencias
         run: npm ci
 
+      - name: Asegurar que el directorio de reportes existe
+        run: |
+          mkdir -p cypress/reports
+
       - name: Ejecutar pruebas Cypress
         run: npm run test
         continue-on-error: true
@@ -40,11 +44,6 @@ jobs:
           echo "📊 Generando reportes..."
           npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes (puede ser normal si no hay reportes)"
           npm run generate:report || echo "⚠️ No se pudo generar reporte HTML (puede ser normal si no hay reportes)"
-
-      - name: Asegurar que el directorio de reportes existe
-        if: always()
-        run: |
-          mkdir -p cypress/reports
 
       - name: Publicar reporte HTML
         if: always()
