@@ -111,104 +111,53 @@ jobs:
           echo "  GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
           echo "  GITHUB_REF_NAME: $GITHUB_REF_NAME"
           echo "  GITHUB_RUN_ID: $GITHUB_RUN_ID"
-          echo "  SLACK_WEBHOOK_URL configurado: $([ -z "$SLACK_WEBHOOK_URL" ] && echo 'NO' || echo 'SÍ')"
           
           # Verificar que el webhook URL está configurado
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
             echo "❌ ERROR: SLACK_WEBHOOK_URL no está configurado."
             echo "   Ve a Settings → Secrets → Actions y configura SLACK_WEBHOOK_URL"
-            exit 0  # No fallar el workflow, solo saltar
+            exit 0
           fi
           
-          echo "✅ Webhook URL configurado correctamente"
+          echo "✅ Webhook URL configurado (longitud: ${#SLACK_WEBHOOK_URL} caracteres)"
           
-          # Verificar que el script existe
-          if [ ! -f "scripts/generate-slack-message.js" ]; then
-            echo "⚠️ No se encontró el script, usando notificación básica"
-            USE_BASIC=true
-          else
-            USE_BASIC=false
+          # Intentar generar payload detallado, si falla usar básico
+          PAYLOAD=""
+          if [ -f "scripts/generate-slack-message.js" ] && [ -f "cypress/reports/report.json" ]; then
+            echo "📝 Intentando generar mensaje detallado..."
+            SCRIPT_OUTPUT=$(node scripts/generate-slack-message.js 2>/dev/null)
+            if [ $? -eq 0 ] && [ -n "$SCRIPT_OUTPUT" ] && echo "$SCRIPT_OUTPUT" | grep -q '{'; then
+              PAYLOAD="$SCRIPT_OUTPUT"
+              echo "✅ Payload detallado generado"
+            fi
           fi
           
-          # Generar payload JSON usando el script de Node.js
-          echo "📝 Generando mensaje de Slack..."
-          echo "📂 Verificando si existe report.json..."
-          if [ -f "cypress/reports/report.json" ]; then
-            echo "✅ Reporte JSON encontrado"
-            ls -lh cypress/reports/report.json
-          else
-            echo "⚠️ Reporte JSON no encontrado, buscando archivos JSON..."
-            ls -la cypress/reports/*.json 2>/dev/null || echo "No se encontraron archivos JSON"
-          fi
-          
-          # Ejecutar script y capturar output
-          echo "Ejecutando script de generación de mensaje..."
-          SCRIPT_OUTPUT=$(node scripts/generate-slack-message.js 2> /tmp/script_errors.txt)
-          PAYLOAD_EXIT_CODE=$?
-          
-          # Mostrar errores si los hay (pero no fallar)
-          if [ -s /tmp/script_errors.txt ]; then
-            echo "ℹ️ Mensajes del script:"
-            cat /tmp/script_errors.txt
-          fi
-          
-          # Intentar usar el output del script si existe y no está vacío
-          if [ $PAYLOAD_EXIT_CODE -eq 0 ] && [ -n "$SCRIPT_OUTPUT" ] && echo "$SCRIPT_OUTPUT" | grep -q '{'; then
-            PAYLOAD="$SCRIPT_OUTPUT"
-            echo "✅ Payload generado exitosamente desde script"
-            echo "Tamaño: $(echo "$PAYLOAD" | wc -c) caracteres"
-          else
-            echo "⚠️ Usando notificación básica (script falló o no generó output válido)"
-            PAYLOAD=$(cat <<EOF
-{
-  "text": "🧪 Reporte de Pruebas Cypress - EMS",
-  "blocks": [
-    {
-      "type": "section",
-      "text": {
-        "type": "mrkdwn",
-        "text": "*🧪 Reporte de Pruebas Cypress*\n\n*Repositorio:* $GITHUB_REPOSITORY\n*Rama:* $GITHUB_REF_NAME\n*Commit:* ${GITHUB_SHA:0:7}\n*Ejecutado por:* $GITHUB_ACTOR\n\n<${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}|📋 Ver ejecución completa>"
-      }
-    }
-  ]
-}
-EOF
-)
+          # Si no hay payload detallado, usar básico
+          if [ -z "$PAYLOAD" ]; then
+            echo "📝 Generando notificación básica..."
+            PAYLOAD="{\"text\":\"🧪 Reporte de Pruebas Cypress - EMS\",\"blocks\":[{\"type\":\"section\",\"text\":{\"type\":\"mrkdwn\",\"text\":\"*🧪 Reporte de Pruebas Cypress*\\n\\n*Repositorio:* $GITHUB_REPOSITORY\\n*Rama:* $GITHUB_REF_NAME\\n*Commit:* ${GITHUB_SHA:0:7}\\n*Ejecutado por:* $GITHUB_ACTOR\\n\\n<$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID|📋 Ver ejecución completa>\"}}]}"
           fi
           
           # Enviar a Slack
           echo "📤 Enviando notificación a Slack..."
-          echo "🔗 Webhook URL (primeros 50 caracteres): ${SLACK_WEBHOOK_URL:0:50}..."
-          echo "📏 Tamaño del payload: $(echo "$PAYLOAD" | wc -c) caracteres"
+          echo "Payload size: $(echo "$PAYLOAD" | wc -c) bytes"
           
-          HTTP_CODE=$(curl -s -o /tmp/slack_response.txt -w "%{http_code}" \
+          RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST \
             -H 'Content-type: application/json' \
             --data "$PAYLOAD" \
             --max-time 10 \
-            --fail-with-body \
             "$SLACK_WEBHOOK_URL" 2>&1)
           
-          CURL_EXIT=$?
+          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
+          BODY=$(echo "$RESPONSE" | sed '$d')
           
-          echo "📊 Resultado de curl:"
-          echo "  Exit code: $CURL_EXIT"
-          echo "  HTTP code: $HTTP_CODE"
+          echo "HTTP Code: $HTTP_CODE"
+          echo "Response: $BODY"
           
-          if [ $CURL_EXIT -ne 0 ]; then
-            echo "❌ Error de conexión al enviar a Slack"
-            echo "Error completo:"
-            cat /tmp/slack_response.txt || true
-          elif [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Notificación enviada exitosamente a Slack (HTTP 200)"
-            echo "Respuesta de Slack:"
-            cat /tmp/slack_response.txt || echo "(sin respuesta)"
+          if [ "$HTTP_CODE" = "200" ]; then
+            echo "✅ Notificación enviada exitosamente a Slack"
           else
-            echo "⚠️ Error al enviar notificación. Código HTTP: $HTTP_CODE"
-            echo "Respuesta de Slack:"
-            cat /tmp/slack_response.txt || true
-            echo ""
-            echo "Payload enviado (primeros 200 caracteres):"
-            echo "$PAYLOAD" | head -c 200
-            echo "..."
+            echo "❌ Error al enviar. HTTP: $HTTP_CODE"
+            echo "Respuesta: $BODY"
           fi
