@@ -64,7 +64,7 @@ jobs:
           retention-days: 7
 
       - name: Generar y enviar notificación detallada a Slack
-        if: always() && secrets.SLACK_WEBHOOK_URL != null
+        if: always()
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_ACTOR: ${{ github.actor }}
