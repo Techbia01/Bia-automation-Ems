@@ -12,15 +12,16 @@ try {
     if (fileContent.trim()) {
       reportData = JSON.parse(fileContent);
       hasReportData = true;
-      console.error('✅ Reporte JSON leído exitosamente');
+      // Usar stderr para logs, no stdout (que se usa para JSON)
+      process.stderr.write('✅ Reporte JSON leído exitosamente\n');
     } else {
-      console.error('⚠️ El archivo de reporte está vacío');
+      process.stderr.write('⚠️ El archivo de reporte está vacío\n');
     }
   } else {
-    console.error('⚠️ No se encontró el archivo de reporte en:', reportPath);
+    process.stderr.write(`⚠️ No se encontró el archivo de reporte en: ${reportPath}\n`);
   }
 } catch (error) {
-  console.error('❌ Error al leer el reporte:', error.message);
+  process.stderr.write(`❌ Error al leer el reporte: ${error.message}\n`);
   // Continuar con datos vacíos
 }
 
@@ -31,13 +32,19 @@ const failedTests = stats.failures || 0;
 const pendingTests = stats.pending || 0;
 const successRate = totalTests > 0 ? ((passedTests * 100) / totalTests).toFixed(2) : 0;
 
-// Extraer pruebas fallidas
+// Extraer pruebas fallidas y exitosas por archivo
 const failedSpecs = [];
 const passedSpecs = [];
+const fileResults = {}; // Para agrupar por archivo
 
 if (reportData.results && Array.isArray(reportData.results)) {
   reportData.results.forEach(suite => {
-    const fileName = suite.file ? suite.file.split('/').pop() : 'Desconocido';
+    // Obtener nombre del archivo completo (ej: cypress/e2e/Login/login.cy.js)
+    const fullFilePath = suite.file || '';
+    // Extraer solo el nombre del archivo (ej: login.cy.js)
+    const fileName = fullFilePath ? fullFilePath.split('/').pop() : 'Desconocido';
+    // Extraer ruta relativa (ej: Login/login.cy.js)
+    const relativePath = fullFilePath ? fullFilePath.replace(/^.*\/e2e\//, '') : fileName;
     
     if (suite.suites && Array.isArray(suite.suites)) {
       suite.suites.forEach(s => {
@@ -47,13 +54,22 @@ if (reportData.results && Array.isArray(reportData.results)) {
             const testInfo = {
               title: testTitle,
               file: fileName,
+              relativePath: relativePath,
               duration: test.duration || 0
             };
             
             if (test.state === 'failed') {
               failedSpecs.push(testInfo);
+              if (!fileResults[relativePath]) {
+                fileResults[relativePath] = { passed: 0, failed: 0 };
+              }
+              fileResults[relativePath].failed++;
             } else if (test.state === 'passed') {
               passedSpecs.push(testInfo);
+              if (!fileResults[relativePath]) {
+                fileResults[relativePath] = { passed: 0, failed: 0 };
+              }
+              fileResults[relativePath].passed++;
             }
           });
         }
@@ -143,20 +159,35 @@ blocks.push({
   type: 'divider'
 });
 
-// Agregar sección de pruebas fallidas
+// Agregar sección de pruebas fallidas por archivo
 if (failedSpecs.length > 0) {
-  const failedList = failedSpecs
-    .slice(0, 15) // Máximo 15 pruebas fallidas
-    .map(test => `• ${test.title}\n  _${test.file}_`)
-    .join('\n');
+  // Agrupar por archivo
+  const failedByFile = {};
+  failedSpecs.forEach(test => {
+    if (!failedByFile[test.relativePath]) {
+      failedByFile[test.relativePath] = [];
+    }
+    failedByFile[test.relativePath].push(test);
+  });
   
-  const moreFailed = failedSpecs.length > 15 ? `\n• ... y ${failedSpecs.length - 15} más` : '';
+  const failedList = Object.keys(failedByFile)
+    .slice(0, 10) // Máximo 10 archivos
+    .map(filePath => {
+      const tests = failedByFile[filePath];
+      const testNames = tests.map(t => t.title).join(', ');
+      return `✖ ${filePath}\n  ${testNames}`;
+    })
+    .join('\n\n');
+  
+  const moreFiles = Object.keys(failedByFile).length > 10 
+    ? `\n\n... y ${Object.keys(failedByFile).length - 10} archivo(s) más con fallos` 
+    : '';
   
   blocks.push({
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `*❌ Pruebas Fallidas (${failedTests}):*\n\`\`\`${failedList}${moreFailed}\`\`\``
+      text: `*❌ Archivos con Pruebas Fallidas (${Object.keys(failedByFile).length}):*\n\`\`\`${failedList}${moreFiles}\`\`\``
     }
   });
   
@@ -165,31 +196,41 @@ if (failedSpecs.length > 0) {
   });
 }
 
-// Agregar sección de pruebas exitosas (mejor formato cuando todas pasan)
+// Agregar sección de pruebas exitosas por archivo
 if (passedSpecs.length > 0) {
-  // Si todas pasaron, mostrar más pruebas y con mejor formato
-  const maxToShow = failedTests === 0 ? 20 : 10; // Mostrar más si todas pasaron
-  const passedList = passedSpecs
+  // Agrupar por archivo
+  const passedByFile = {};
+  passedSpecs.forEach(test => {
+    if (!passedByFile[test.relativePath]) {
+      passedByFile[test.relativePath] = [];
+    }
+    passedByFile[test.relativePath].push(test);
+  });
+  
+  const maxToShow = failedTests === 0 ? 15 : 8; // Mostrar más si todas pasaron
+  const passedList = Object.keys(passedByFile)
     .slice(0, maxToShow)
-    .map((test, index) => {
-      const duration = test.duration ? ` (${(test.duration / 1000).toFixed(1)}s)` : '';
-      return `✅ ${test.title}${duration}`;
+    .map(filePath => {
+      const tests = passedByFile[filePath];
+      return `✓ ${filePath} (${tests.length} prueba${tests.length > 1 ? 's' : ''})`;
     })
     .join('\n');
   
-  const morePassed = passedSpecs.length > maxToShow ? `\n\n... y ${passedSpecs.length - maxToShow} prueba(s) más exitosa(s)` : '';
+  const moreFiles = Object.keys(passedByFile).length > maxToShow 
+    ? `\n\n... y ${Object.keys(passedByFile).length - maxToShow} archivo(s) más exitoso(s)` 
+    : '';
   
   // Título diferente según el resultado
   const titleEmoji = failedTests === 0 ? '🎯' : '✅';
   const titleText = failedTests === 0 
-    ? `*${titleEmoji} ¡Todas las Pruebas Exitosas! (${passedTests}/${totalTests}):*`
-    : `*${titleEmoji} Pruebas Exitosas (${passedTests}):*`;
+    ? `*${titleEmoji} Archivos con Pruebas Exitosas (${Object.keys(passedByFile).length}):*`
+    : `*${titleEmoji} Archivos con Pruebas Exitosas (${Object.keys(passedByFile).length}):*`;
   
   blocks.push({
     type: 'section',
     text: {
       type: 'mrkdwn',
-      text: `${titleText}\n\`\`\`${passedList}${morePassed}\`\`\``
+      text: `${titleText}\n\`\`\`${passedList}${moreFiles}\`\`\``
     }
   });
   

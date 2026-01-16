@@ -51,10 +51,14 @@ module.exports = defineConfig({
           launchOptions.args.push('--disable-background-timer-throttling');
           launchOptions.args.push('--disable-backgrounding-occluded-windows');
           launchOptions.args.push('--disable-renderer-backgrounding');
-          // Opciones adicionales para mejorar la conectividad
+          // Opciones adicionales para mejorar la conectividad y SSL
           launchOptions.args.push('--ignore-certificate-errors');
           launchOptions.args.push('--ignore-ssl-errors');
           launchOptions.args.push('--ignore-certificate-errors-spki-list');
+          launchOptions.args.push('--allow-running-insecure-content');
+          launchOptions.args.push('--test-type');
+          launchOptions.args.push('--allow-insecure-localhost');
+          launchOptions.args.push('--unsafely-treat-insecure-origin-as-secure=https://web.dev.bia.app');
           // Deshabilitar completamente el diálogo de restauración de páginas
           launchOptions.args.push('--disable-session-crashed-bubble');
           launchOptions.args.push('--disable-infobars');

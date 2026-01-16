@@ -37,13 +37,30 @@ jobs:
         continue-on-error: true
         env:
           CYPRESS_BASE_URL: https://web.dev.bia.app
+          NODE_TLS_REJECT_UNAUTHORIZED: 0
+          CYPRESS_VERIFY_TIMEOUT: 120000
 
       - name: Generar reportes después de las pruebas
         if: always()
         run: |
           echo "📊 Generando reportes..."
-          npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes (puede ser normal si no hay reportes)"
-          npm run generate:report || echo "⚠️ No se pudo generar reporte HTML (puede ser normal si no hay reportes)"
+          
+          # Verificar si hay archivos JSON de reporte
+          if ls cypress/reports/*.json 1> /dev/null 2>&1; then
+            echo "✅ Se encontraron archivos JSON de reporte"
+            npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes"
+            
+            # Verificar si se generó el report.json
+            if [ -f "cypress/reports/report.json" ]; then
+              echo "✅ Generando reporte HTML..."
+              npm run generate:report || echo "⚠️ No se pudo generar reporte HTML"
+            else
+              echo "⚠️ No se generó report.json después del merge"
+            fi
+          else
+            echo "⚠️ No se encontraron archivos JSON de reporte. Las pruebas pueden haber fallado antes de generar reportes."
+            echo "   Esto puede ocurrir si las pruebas fallan muy temprano o hay un error de configuración."
+          fi
 
       - name: Publicar reporte HTML
         if: always()
@@ -52,6 +69,7 @@ jobs:
           name: cypress-report
           path: cypress/reports/report.html
           retention-days: 30
+          if-no-files-found: warn
 
       - name: Publicar videos y screenshots
         if: always()
@@ -91,10 +109,23 @@ jobs:
           
           # Generar payload JSON usando el script de Node.js
           echo "📝 Generando mensaje de Slack..."
-          PAYLOAD=$(node scripts/generate-slack-message.js)
+          echo "📂 Verificando si existe report.json..."
+          if [ -f "cypress/reports/report.json" ]; then
+            echo "✅ Reporte JSON encontrado"
+            ls -lh cypress/reports/report.json
+          else
+            echo "⚠️ Reporte JSON no encontrado, buscando archivos JSON..."
+            ls -la cypress/reports/*.json 2>/dev/null || echo "No se encontraron archivos JSON"
+          fi
           
-          if [ -z "$PAYLOAD" ]; then
-            echo "⚠️ No se pudo generar el payload. Enviando notificación básica..."
+          PAYLOAD=$(node scripts/generate-slack-message.js 2>&1)
+          PAYLOAD_EXIT_CODE=$?
+          
+          if [ $PAYLOAD_EXIT_CODE -ne 0 ] || [ -z "$PAYLOAD" ]; then
+            echo "⚠️ Error al generar payload (exit code: $PAYLOAD_EXIT_CODE)"
+            echo "Output del script:"
+            echo "$PAYLOAD"
+            echo "⚠️ Enviando notificación básica..."
             PAYLOAD=$(cat <<EOF
           {
             "text": "🧪 Reporte de Pruebas Cypress - EMS",
@@ -110,6 +141,9 @@ jobs:
           }
           EOF
           )
+          else
+            echo "✅ Payload generado exitosamente"
+            echo "Tamaño del payload: $(echo "$PAYLOAD" | wc -c) caracteres"
           fi
           
           # Enviar a Slack
