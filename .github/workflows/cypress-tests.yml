@@ -95,6 +95,7 @@ jobs:
 
       - name: Generar y enviar notificación detallada a Slack
         if: always()
+        continue-on-error: true
         env:
           GITHUB_REF_NAME: ${{ github.ref_name }}
           GITHUB_ACTOR: ${{ github.actor }}
@@ -105,18 +106,29 @@ jobs:
           GITHUB_WORKFLOW: ${{ github.workflow }}
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          set -e  # Salir si hay errores, pero continuar con el workflow
           echo "🔔 Preparando notificación a Slack..."
-          
-          # Verificar que el script existe
-          if [ ! -f "scripts/generate-slack-message.js" ]; then
-            echo "❌ Error: No se encontró el script generate-slack-message.js"
-            exit 1
-          fi
+          echo "📋 Variables de entorno:"
+          echo "  GITHUB_REPOSITORY: $GITHUB_REPOSITORY"
+          echo "  GITHUB_REF_NAME: $GITHUB_REF_NAME"
+          echo "  GITHUB_RUN_ID: $GITHUB_RUN_ID"
+          echo "  SLACK_WEBHOOK_URL configurado: $([ -z "$SLACK_WEBHOOK_URL" ] && echo 'NO' || echo 'SÍ')"
           
           # Verificar que el webhook URL está configurado
           if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "⚠️ SLACK_WEBHOOK_URL no está configurado. Saltando notificación."
-            exit 0
+            echo "❌ ERROR: SLACK_WEBHOOK_URL no está configurado."
+            echo "   Ve a Settings → Secrets → Actions y configura SLACK_WEBHOOK_URL"
+            exit 0  # No fallar el workflow, solo saltar
+          fi
+          
+          echo "✅ Webhook URL configurado correctamente"
+          
+          # Verificar que el script existe
+          if [ ! -f "scripts/generate-slack-message.js" ]; then
+            echo "⚠️ No se encontró el script, usando notificación básica"
+            USE_BASIC=true
+          else
+            USE_BASIC=false
           fi
           
           # Generar payload JSON usando el script de Node.js
