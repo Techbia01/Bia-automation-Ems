@@ -29,33 +29,22 @@ jobs:
         run: npm ci
 
       - name: Ejecutar pruebas Cypress
-        run: npm run test:report
+        run: npm run test
         continue-on-error: true
         env:
           CYPRESS_BASE_URL: https://web.dev.bia.app
+
+      - name: Generar reportes después de las pruebas
+        if: always()
+        run: |
+          echo "📊 Generando reportes..."
+          npm run merge:reports || echo "⚠️ No se pudieron fusionar reportes (puede ser normal si no hay reportes)"
+          npm run generate:report || echo "⚠️ No se pudo generar reporte HTML (puede ser normal si no hay reportes)"
 
       - name: Asegurar que el directorio de reportes existe
         if: always()
         run: |
           mkdir -p cypress/reports
-
-      - name: Generar reporte JSON si no existe
-        if: always()
-        run: |
-          if [ ! -f "cypress/reports/report.json" ]; then
-            echo "⚠️ Reporte JSON no encontrado, generando..."
-            npm run merge:reports || echo "⚠️ No se pudieron generar reportes JSON"
-          else
-            echo "✅ Reporte JSON encontrado"
-          fi
-
-      - name: Generar reporte HTML si no existe
-        if: always()
-        run: |
-          if [ ! -f "cypress/reports/report.html" ]; then
-            echo "Generando reporte HTML..."
-            npm run generate:report || true
-          fi
 
       - name: Publicar reporte HTML
         if: always()
