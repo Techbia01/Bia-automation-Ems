@@ -1,6 +1,19 @@
 const { defineConfig } = require('cypress');
+const { beforeRunHook, afterRunHook } = require('cypress-mochawesome-reporter/lib');
 
 module.exports = defineConfig({
+  reporter: 'cypress-mochawesome-reporter',
+  reporterOptions: {
+    charts: true,
+    reportPageTitle: 'Reporte de Pruebas Cypress - EMS',
+    embeddedScreenshots: true,
+    inlineAssets: true,
+    saveAllAttempts: false,
+    reportDir: 'cypress/reports',
+    overwrite: false,
+    html: true,
+    json: true,
+  },
   e2e: {
     baseUrl: 'https://web.dev.bia.app',
     specPattern: 'cypress/e2e/**/*.cy.{js,jsx,ts,tsx}',
@@ -19,29 +32,7 @@ module.exports = defineConfig({
     responseTimeout: 30000,
     pageLoadTimeout: 60000,
     setupNodeEvents(on, config) {
-      // Configurar hook para guardar resultados después de ejecutar las pruebas
-      on('after:run', (results) => {
-        const fs = require('fs');
-        const path = require('path');
-        
-        try {
-          // Crear directorio si no existe
-          const resultsDir = path.join(__dirname, 'cypress', 'results');
-          if (!fs.existsSync(resultsDir)) {
-            fs.mkdirSync(resultsDir, { recursive: true });
-          }
-          
-          // Guardar resultados completos en formato JSON
-          const resultsFile = path.join(resultsDir, 'results.json');
-          fs.writeFileSync(resultsFile, JSON.stringify(results, null, 2));
-          
-          console.log(`Resultados guardados en: ${resultsFile}`);
-          console.log(`Tests: ${results.stats?.tests || 0}, Pasados: ${results.stats?.passes || 0}, Fallidos: ${results.stats?.failures || 0}`);
-        } catch (error) {
-          console.error('Error guardando resultados:', error.message);
-        }
-      });
-      
+      require('cypress-mochawesome-reporter/plugin')(on);
       // Configuración para Chrome
       on('before:browser:launch', (browser, launchOptions) => {
         if (browser.name === 'chrome') {

@@ -135,3 +135,14 @@ Después de cada ejecución:
 - **Días laborables**: Considera ejecutar más frecuentemente en días laborables
 - **Notificaciones**: Configura notificaciones por email en GitHub para recibir alertas de fallos
 
+
+
+
+
+
+
+
+
+
+
+

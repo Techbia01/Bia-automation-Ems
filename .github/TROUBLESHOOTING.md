@@ -102,3 +102,14 @@ Si después de revisar los logs sigues teniendo problemas:
 2. Revisa qué test está fallando
 3. Verifica que el test funcione localmente con `npm test`
 
+
+
+
+
+
+
+
+
+
+
+
