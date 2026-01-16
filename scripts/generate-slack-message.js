@@ -291,5 +291,28 @@ const payload = {
 };
 
 // Imprimir JSON para que GitHub Actions lo use
-console.log(JSON.stringify(payload));
+// Usar try-catch para asegurar que siempre se imprima algo
+try {
+  const jsonOutput = JSON.stringify(payload);
+  if (!jsonOutput || jsonOutput === '{}' || jsonOutput === 'null') {
+    throw new Error('Payload vacío o inválido');
+  }
+  console.log(jsonOutput);
+} catch (error) {
+  // Si hay error, generar un payload mínimo válido
+  process.stderr.write(`Error al generar JSON: ${error.message}\n`);
+  const fallbackPayload = {
+    text: '🧪 Reporte de Pruebas Cypress - EMS',
+    blocks: [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*🧪 Reporte de Pruebas Cypress*\n\n*Error:* No se pudo generar el reporte completo\n*Repositorio:* ${process.env.GITHUB_REPOSITORY || 'N/A'}\n*Rama:* ${process.env.GITHUB_REF_NAME || 'N/A'}\n*Commit:* ${(process.env.GITHUB_SHA || '').substring(0, 7) || 'N/A'}\n*Ejecutado por:* ${process.env.GITHUB_ACTOR || 'N/A'}`
+        }
+      }
+    ]
+  };
+  console.log(JSON.stringify(fallbackPayload));
+}
 
