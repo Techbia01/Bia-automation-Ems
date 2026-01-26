@@ -123,7 +123,6 @@ Para cambiar los horarios de ejecución automática:
 
 1. Abre `.github/workflows/cypress-tests.yml`
 2. Modifica la sección `schedule:` con tus horarios preferidos
-3. Consulta `.github/SCHEDULE_GUIDE.md` para ejemplos y guía completa
 
 **Ejemplo rápido** - Ejecutar todos los días a las 9 AM hora de México:
 ```yaml
@@ -143,7 +142,10 @@ El proyecto está configurado para enviar notificaciones automáticas a Slack cu
 
 **Para configurar Slack:**
 
-1. Crea un Webhook en Slack (consulta `.github/SLACK_SETUP.md` para instrucciones detalladas)
+1. Crea un Webhook en Slack:
+   - Ve a https://api.slack.com/apps
+   - Crea una nueva app y activa "Incoming Webhooks"
+   - Copia el Webhook URL
 2. Agrega el Webhook URL como secret en GitHub:
    - Ve a Settings → Secrets → Actions
    - Crea un nuevo secret llamado `SLACK_WEBHOOK_URL`
@@ -162,7 +164,5 @@ Las notificaciones incluyen:
 Para problemas con:
 - **Tests generales**: Revisa los logs en Cypress
 - **GitHub Actions**: Verifica que el workflow esté activo en la pestaña "Actions"
-- **Programación de horarios**: Consulta `.github/SCHEDULE_GUIDE.md`
-- **Notificaciones Slack**: Consulta `.github/SLACK_SETUP.md`
 - **Otros**: Contacta al equipo de QA
 
