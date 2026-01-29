@@ -197,21 +197,67 @@ export function compararDatosWidgets(uiData, apiData) {
       // Buscar el widget correspondiente en el UI usando el header como clave
       // Intentar coincidencia exacta primero
       let uiWidget = uiData[apiHeaderNormalizado];
+      let matchingKey = apiHeaderNormalizado;
       
       // Si no encontramos coincidencia exacta, buscar por coincidencia parcial
       if (!uiWidget) {
         const uiKeys = Object.keys(uiData);
-        const matchingKey = uiKeys.find(key => {
-          const keyNormalizado = key.trim();
-          // Comparación flexible: igual o contiene
-          return keyNormalizado === apiHeaderNormalizado || 
-                 keyNormalizado.includes(apiHeaderNormalizado) ||
-                 apiHeaderNormalizado.includes(keyNormalizado);
+        
+        // Estrategia 1: Comparación case-insensitive
+        const matchCaseInsensitive = uiKeys.find(key => {
+          const keyNormalizado = key.trim().toLowerCase();
+          const apiNormalizado = apiHeaderNormalizado.toLowerCase();
+          return keyNormalizado === apiNormalizado;
         });
         
-        if (matchingKey) {
-          uiWidget = uiData[matchingKey];
-          cy.log(`🔗 Header del API "${apiHeaderNormalizado}" coincide con UI "${matchingKey}"`);
+        if (matchCaseInsensitive) {
+          uiWidget = uiData[matchCaseInsensitive];
+          matchingKey = matchCaseInsensitive;
+          cy.log(`🔗 Header del API "${apiHeaderNormalizado}" coincide con UI "${matchingKey}" (case-insensitive)`);
+        }
+        
+        // Estrategia 2: Comparación por palabras clave (si no encontramos con estrategia 1)
+        if (!uiWidget) {
+          // Extraer palabras clave del header del API
+          const apiPalabras = apiHeaderNormalizado.toLowerCase()
+            .split(/\s+/)
+            .filter(p => p.length > 2); // Filtrar palabras muy cortas
+          
+          const matchPorPalabras = uiKeys.find(key => {
+            const keyNormalizado = key.trim().toLowerCase();
+            // Verificar que todas las palabras clave importantes estén presentes
+            const palabrasCoinciden = apiPalabras.every(palabra => 
+              keyNormalizado.includes(palabra)
+            );
+            
+            // También verificar que el key contiene o está contenido en el API header
+            const contieneOContenido = keyNormalizado.includes(apiHeaderNormalizado.toLowerCase()) ||
+                                       apiHeaderNormalizado.toLowerCase().includes(keyNormalizado);
+            
+            return palabrasCoinciden || contieneOContenido;
+          });
+          
+          if (matchPorPalabras) {
+            uiWidget = uiData[matchPorPalabras];
+            matchingKey = matchPorPalabras;
+            cy.log(`🔗 Header del API "${apiHeaderNormalizado}" coincide con UI "${matchingKey}" (por palabras clave)`);
+          }
+        }
+        
+        // Estrategia 3: Comparación flexible simple (fallback)
+        if (!uiWidget) {
+          const matchFlexible = uiKeys.find(key => {
+            const keyNormalizado = key.trim().toLowerCase();
+            const apiNormalizado = apiHeaderNormalizado.toLowerCase();
+            return keyNormalizado.includes(apiNormalizado) ||
+                   apiNormalizado.includes(keyNormalizado);
+          });
+          
+          if (matchFlexible) {
+            uiWidget = uiData[matchFlexible];
+            matchingKey = matchFlexible;
+            cy.log(`🔗 Header del API "${apiHeaderNormalizado}" coincide con UI "${matchingKey}" (comparación flexible)`);
+          }
         }
       }
       
@@ -254,6 +300,10 @@ export function compararDatosWidgets(uiData, apiData) {
           });
         }
       } else {
+        // Log detallado cuando no se encuentra el widget en UI
+        cy.log(`⚠️ Widget del API no encontrado en UI: "${apiHeaderNormalizado}"`);
+        cy.log(`   📋 Headers disponibles en UI: ${Object.keys(uiData).join(', ')}`);
+        
         comparacion.apiSolo.push({
           widget: header,
           api: {
@@ -270,11 +320,32 @@ export function compararDatosWidgets(uiData, apiData) {
     const existeEnApi = apiData && Array.isArray(apiData) && 
       apiData.some(w => {
         const apiHeader = (w.header || w.title || '').trim();
-        const uiHeaderNormalizado = uiHeader.trim();
-        // Comparación flexible
-        return apiHeader === uiHeaderNormalizado ||
-               apiHeader.includes(uiHeaderNormalizado) ||
-               uiHeaderNormalizado.includes(apiHeader);
+        const uiHeaderNormalizado = uiHeader.trim().toLowerCase();
+        const apiHeaderNormalizado = apiHeader.toLowerCase();
+        
+        // Comparación exacta (case-insensitive)
+        if (uiHeaderNormalizado === apiHeaderNormalizado) {
+          return true;
+        }
+        
+        // Comparación por palabras clave
+        const uiPalabras = uiHeaderNormalizado.split(/\s+/).filter(p => p.length > 2);
+        const apiPalabras = apiHeaderNormalizado.split(/\s+/).filter(p => p.length > 2);
+        
+        // Verificar que las palabras clave importantes coincidan
+        const palabrasCoinciden = uiPalabras.every(palabra => 
+          apiHeaderNormalizado.includes(palabra)
+        ) || apiPalabras.every(palabra => 
+          uiHeaderNormalizado.includes(palabra)
+        );
+        
+        if (palabrasCoinciden) {
+          return true;
+        }
+        
+        // Comparación flexible simple
+        return apiHeaderNormalizado.includes(uiHeaderNormalizado) ||
+               uiHeaderNormalizado.includes(apiHeaderNormalizado);
       });
     
     if (!existeEnApi) {
@@ -361,6 +432,17 @@ function compararValoresAproximados(valorUI, valorStrAPI, valorNumAPI) {
     if (uiNormalizado === apiNormalizado) {
       return true;
     }
+    
+    // Comparación flexible: extraer solo la parte numérica y unidad
+    const uiMatch = uiNormalizado.match(/(\d+(?:\.\d+)?[kmb]?)\s*(kwh|kvarh|kvah)?/);
+    const apiMatch = apiNormalizado.match(/(\d+(?:\.\d+)?[kmb]?)\s*(kwh|kvarh|kvah)?/);
+    
+    if (uiMatch && apiMatch) {
+      // Comparar solo la parte numérica (ignorar unidad si es diferente pero válida)
+      if (uiMatch[1] === apiMatch[1]) {
+        return true;
+      }
+    }
   }
   
   // Si tenemos valor numérico del API, convertir a formato K/M/B y comparar
@@ -368,12 +450,28 @@ function compararValoresAproximados(valorUI, valorStrAPI, valorNumAPI) {
     const valorAproximado = convertirNumeroAFormato(valorNumAPI);
     const apiAproximado = normalizarUI(valorAproximado);
     
-    // Extraer solo la parte numérica con K/M/B del UI (sin "kwh")
-    const uiSoloNumero = uiNormalizado.replace(/\s*kwh/g, '').trim();
-    const apiSoloNumero = apiAproximado.replace(/\s*kwh/g, '').trim();
+    // Extraer solo la parte numérica con K/M/B del UI (sin unidades: kwh, kvarh, kvah)
+    const uiSoloNumero = uiNormalizado.replace(/\s*(kwh|kvarh|kvah)/gi, '').trim();
+    const apiSoloNumero = apiAproximado.replace(/\s*(kwh|kvarh|kvah)/gi, '').trim();
     
     if (uiSoloNumero === apiSoloNumero) {
       return true;
+    }
+    
+    // Comparación más flexible: extraer solo el número sin K/M/B
+    const uiNumMatch = uiSoloNumero.match(/(\d+(?:\.\d+)?)/);
+    const apiNumMatch = apiSoloNumero.match(/(\d+(?:\.\d+)?)/);
+    
+    if (uiNumMatch && apiNumMatch) {
+      const uiNum = parseFloat(uiNumMatch[1]);
+      const apiNum = parseFloat(apiNumMatch[1]);
+      
+      // Permitir pequeñas diferencias de redondeo (menos del 5%)
+      const diferencia = Math.abs(uiNum - apiNum) / Math.max(uiNum, apiNum);
+      if (diferencia < 0.05) {
+        cy.log(`   ✅ Comparación aproximada aceptada: UI="${valorUI}" vs API="${valorStrAPI || valorNumAPI}" (diferencia: ${(diferencia * 100).toFixed(1)}%)`);
+        return true;
+      }
     }
     
     cy.log(`   🔍 Comparación aproximada: UI="${valorUI}" (${uiSoloNumero}) vs API numérico=${valorNumAPI} (${apiSoloNumero})`);

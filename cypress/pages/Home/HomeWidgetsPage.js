@@ -1,340 +1,45 @@
 // cypress/pages/Home/HomeWidgetsPage.js
 class HomeWidgetsPage {
-  // Selectores para los widgets del home
-  // Nota: Estos selectores pueden necesitar ajustarse según la estructura real del DOM
+  // ============================================================
+  // SELECTORES BASADOS EN DATA-* ATTRIBUTES (MÁS ROBUSTOS)
+  // ============================================================
   
-  // Selector genérico para contenedor de widgets
-  get widgetsContainer() { return '[data-testid="home-widgets"], .home-widgets, [class*="widget"]'; }
+  // Contenedor principal del home
+  get homeContainer() { return '.Home_container__j8qHB'; }
+  get homeGrid() { return '.Home_grid__08FM_'; }
   
-  // Métodos para obtener datos de los widgets desde el UI
-  // Usa navegación del DOM (parent, siblings, children) para encontrar elementos relacionados
-  obtenerDatosWidgets() {
-    cy.log('📊 Obteniendo datos de los widgets desde el UI usando navegación del DOM...');
-    
-    return cy.get('body').then(($body) => {
-      const widgetsData = {};
-      
-      // Buscar todos los elementos que contengan "Consumo" y tengan valores numéricos
-      const $todosLosElementos = $body.find('*');
-      const widgetsEncontrados = [];
-      
-      // Buscar elementos que contengan patrones de consumo
-      $todosLosElementos.each((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim();
-        
-        // Buscar patrones de consumo: "Consumo hoy", "Consumo esta semana", "Consumo este mes", etc.
-        const consumoMatch = text.match(/(Consumo\s+(?:hoy|esta\s+semana|este\s+mes|energético))/i);
-        
-        if (consumoMatch && $el.is(':visible')) {
-          // Verificar que también tenga un valor numérico (kWh) cerca
-          const tieneValor = text.match(/\d+(?:\.\d+)?[KMB]?\s*kWh/i);
-          
-          if (tieneValor) {
-            widgetsEncontrados.push({
-              elemento: $el,
-              texto: text,
-              headerMatch: consumoMatch[1]
-            });
-          }
-        }
-      });
-      
-      cy.log(`🔍 Encontrados ${widgetsEncontrados.length} elementos con patrón de consumo`);
-      
-      // Procesar cada widget encontrado
-      widgetsEncontrados.forEach((widgetInfo, index) => {
-        const $tituloElement = widgetInfo.elemento;
-        const textoCompleto = widgetInfo.texto;
-        const headerMatch = widgetInfo.headerMatch;
-        
-        cy.log(`📋 Procesando widget ${index + 1}/${widgetsEncontrados.length}: "${headerMatch}"`);
-        
-        // Buscar el contenedor del widget
-        let $widget = $tituloElement.parents('[class*="card"], [class*="widget"], [class*="metric"], [class*="MuiCard"]').first();
-        
-        if ($widget.length === 0) {
-          $widget = $tituloElement.closest('div').parent();
-        }
-        
-        if ($widget.length === 0) {
-          $widget = $tituloElement.parent();
-        }
-        
-        // Extraer header
-        let header = headerMatch;
-        
-        // Buscar header más específico en el texto
-        const headerPatterns = [
-          /(Consumo\s+hoy)/i,
-          /(Consumo\s+esta\s+semana)/i,
-          /(Consumo\s+este\s+mes)/i,
-          /(Consumo\s+energético)/i
-        ];
-        
-        for (const pattern of headerPatterns) {
-          const match = textoCompleto.match(pattern);
-          if (match) {
-            header = match[1].trim();
-            break;
-          }
-        }
-        
-        // Extraer value_str
-        let value_str = '';
-        const valueMatch = textoCompleto.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-        if (valueMatch) {
-          value_str = valueMatch[0].trim();
-        } else {
-          // Buscar en el contenedor del widget
-          const widgetText = $widget.length > 0 ? $widget.text() : textoCompleto;
-          const valueMatch2 = widgetText.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-          if (valueMatch2) {
-            value_str = valueMatch2[0].trim();
-          }
-        }
-        
-        // Extraer subheader
-        let subheader = '';
-        const subheaderMatch = textoCompleto.match(/\$[\d.]+[KMB]?\s*COP/gi);
-        if (subheaderMatch) {
-          subheader = subheaderMatch[0].trim();
-        } else {
-          const widgetText = $widget.length > 0 ? $widget.text() : textoCompleto;
-          const subheaderMatch2 = widgetText.match(/\$[\d.]+[KMB]?\s*COP/gi);
-          if (subheaderMatch2) {
-            subheader = subheaderMatch2[0].trim();
-          }
-        }
-        
-        if (header && (value_str || subheader)) {
-          widgetsData[header] = {
-            header: header,
-            value_str: value_str,
-            subheader: subheader
-          };
-          
-          cy.log(`✅ Widget extraído: "${header}"`);
-          cy.log(`   - value_str: ${value_str || 'N/A'}`);
-          cy.log(`   - subheader: ${subheader || 'N/A'}`);
-        }
-      });
-      
-      // También buscar otros widgets que puedan tener consumo pero con diferentes nombres
-      // Buscar "reactiva inductiva penalizada" u otros widgets
-      const $otrosWidgets = $body.find('*').filter((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim().toLowerCase();
-        return (text.includes('reactiva') || text.includes('inductiva') || text.includes('penalizada')) &&
-               $el.is(':visible') &&
-               text.match(/\d+(?:\.\d+)?[kmb]?\s*kwh/i);
-      });
-      
-      if ($otrosWidgets.length > 0) {
-        $otrosWidgets.each((i, el) => {
-          const $el = Cypress.$(el);
-          const texto = $el.text();
-          const headerMatch = texto.match(/([^:]*reactiva[^:]*)/i);
-          
-          if (headerMatch) {
-            const header = headerMatch[1].trim();
-            const valueMatch = texto.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-            const subheaderMatch = texto.match(/\$[\d.]+[KMB]?\s*COP/gi);
-            
-            widgetsData[header] = {
-              header: header,
-              value_str: valueMatch ? valueMatch[0].trim() : '',
-              subheader: subheaderMatch ? subheaderMatch[0].trim() : ''
-            };
-            
-            cy.log(`✅ Widget adicional encontrado: "${header}"`);
-          }
-        });
-      }
-      
-      cy.log(`📊 Total widgets extraídos del UI: ${Object.keys(widgetsData).length}`);
-      Object.keys(widgetsData).forEach(key => {
-        cy.log(`   - "${key}"`);
-      });
-      
-      return cy.wrap(widgetsData);
-    });
-    
-    // Función auxiliar para buscar datos en un contenedor
-    const buscarEnContenedor = ($widget, tituloEsperado, index) => {
-      if ($widget.length === 0 || !$widget.is(':visible')) {
-        return buscarWidget(index + 1);
-      }
-      
-      // Extraer el header real del widget desde el DOM
-      let header = tituloEsperado; // Por defecto usar el título esperado
-      
-      // Estrategia para extraer el header:
-      // 1. Buscar en elementos de título (h1-h6, elementos con class*="title", "header", "label")
-      const $headerElements = $widget.find('[class*="title"], [class*="header"], [class*="label"], h1, h2, h3, h4, h5, h6');
-      if ($headerElements.length > 0) {
-        // Buscar el que contenga el texto del título esperado
-        $headerElements.each((i, el) => {
-          const $el = Cypress.$(el);
-          const text = $el.text().trim();
-          // Verificar si contiene alguno de los títulos esperados
-          if (titulosEsperados.some(t => text.includes(t) || text === t)) {
-            header = text;
-            return false; // break
-          }
-        });
-      }
-      
-      // 2. Si no encontramos header específico, buscar en el texto del widget
-      if (header === tituloEsperado) {
-        const widgetText = $widget.text();
-        const headerMatch = widgetText.match(/(Consumo\s+(?:hoy|esta\s+semana|este\s+mes))/i);
-        if (headerMatch) {
-          header = headerMatch[1].trim();
-        }
-      }
-      
-      let value_str = '';
-      let subheader = '';
-      
-      // Estrategia 1: Buscar en el texto completo del widget
-      const widgetText = $widget.text();
-      
-      // Extraer value_str: número + K/M/B + kWh
-      const valueMatch = widgetText.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-      value_str = valueMatch ? valueMatch[0].trim() : '';
-      
-      // Estrategia 2: Si no encontramos, buscar en elementos hijos específicos
-      if (!value_str) {
-        const $valueElements = $widget.find('[class*="value"], [class*="amount"], [class*="number"], h1, h2, h3, h4, h5, h6');
-        $valueElements.each((i, el) => {
-          const $el = Cypress.$(el);
-          const text = $el.text();
-          const match = text.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-          if (match && !value_str) {
-            value_str = match[0].trim();
-            return false; // break
-          }
-        });
-      }
-      
-      // Extraer subheader: $ + número + K/M/B + COP
-      const subheaderMatch = widgetText.match(/\$[\d.]+[KMB]?\s*COP/gi);
-      subheader = subheaderMatch ? subheaderMatch[0].trim() : '';
-      
-      // Estrategia 3: Buscar en elementos que contengan $ y COP
-      if (!subheader) {
-        const $subheaderElements = $widget.find('*').filter((i, el) => {
-          const $el = Cypress.$(el);
-          const text = $el.text();
-          return text.includes('$') && text.includes('COP');
-        });
-        
-        if ($subheaderElements.length > 0) {
-          const subheaderText = $subheaderElements.first().text();
-          const match = subheaderText.match(/\$[\d.]+[KMB]?\s*COP/gi);
-          subheader = match ? match[0].trim() : '';
-        }
-      }
-      
-      if (value_str || subheader) {
-        widgetsData[header] = {
-          header: header,
-          value_str: value_str,
-          subheader: subheader
-        };
-        
-        cy.log(`✅ Widget encontrado: ${header}`);
-        cy.log(`   - header: ${header}`);
-        cy.log(`   - value_str: ${value_str || 'No encontrado'}`);
-        cy.log(`   - subheader: ${subheader || 'No encontrado'}`);
-      } else {
-        cy.log(`⚠️ Widget encontrado pero sin datos: ${header}`);
-      }
-      
-      return buscarWidget(index + 1);
-    };
-    
-    return buscarWidget(0);
-  }
+  // Widget de saludo/bienvenida
+  get saludoContainer() { return '.InfoWidget_container__QhoGM'; }
+  get saludoHeader() { return '.InfoWidget_header__CIztC'; }
+  get saludoSubtext() { return '.InfoWidget_subtext__1ZB7q'; }
   
-  // Método auxiliar para extraer datos usando navegación del DOM desde un elemento título
-  extraerDatosDesdeTitulo($tituloElement) {
-    const datos = {
-      value_str: '',
-      subheader: ''
-    };
-    
-    // Navegar al contenedor padre del widget
-    const $widget = $tituloElement.parents('[class*="card"], [class*="widget"]').first();
-    
-    if ($widget.length > 0) {
-      // Buscar value_str en elementos hijos específicos
-      const $valueElement = $widget.find('[class*="value"], [class*="amount"], h1, h2, h3').first();
-      if ($valueElement.length > 0) {
-        const valueText = $valueElement.text();
-        const match = valueText.match(/(\d+(?:\.\d+)?[KMB]?\s*kWh)/gi);
-        datos.value_str = match ? match[0].trim() : '';
-      }
-      
-      // Buscar subheader en elementos que contengan $
-      const $subheaderElement = $widget.find('*').filter((i, el) => {
-        return Cypress.$(el).text().includes('$') && Cypress.$(el).text().includes('COP');
-      }).first();
-      
-      if ($subheaderElement.length > 0) {
-        const subheaderText = $subheaderElement.text();
-        const match = subheaderText.match(/\$[\d.]+[KMB]?\s*COP/gi);
-        datos.subheader = match ? match[0].trim() : '';
-      }
-    }
-    
-    return datos;
-  }
+  // Widgets KPI (Consumo hoy/semana/mes) - usando data-demo-target
+  get kpiCards() { return '[data-demo-target="kpi-card"]'; }
+  get kpiCardHeading() { return '.bia-kpi-card__heading'; }
+  get kpiCardValue() { return '.bia-kpi-card__value'; }
+  get kpiCardSubheader() { return '.CardWidget_subheaderContainer__nhRnz'; }
+  
+  // Gráfica de consumo energético - usando data-graph-title
+  get graficaConsumoContainer() { return '[data-graph-widget="true"][data-graph-title="Consumo energético"]'; }
+  get graficaConsumoTitulo() { return '.GraphWidget_titleGroup__Q6FtL'; }
+  get graficaConsumoCanvas() { return '.echarts-for-react canvas'; }
+  
+  // Widget de facturas - usando data-table-title
+  get facturasContainer() { return '[data-table-widget="true"][data-table-title="Facturas"]'; }
+  get facturasTitulo() { return '.TableWidget_titleGroup__Eydni'; }
+  
+  // Widget de variaciones - usando data-table-title
+  get variacionesContainer() { return '[data-table-widget="true"][data-table-title="Variaciones de consumo"]'; }
+  get variacionesTitulo() { return '.TableWidget_titleGroup__Eydni'; }
 
-  // Método para esperar a que los widgets carguen
-  esperarWidgetsCarguen() {
-    cy.log('⏳ Esperando a que los widgets del home carguen...');
-    
-    // Esperar a que aparezcan los widgets o algún indicador de carga
-    cy.get('[class*="widget"], [data-testid*="widget"], [class*="card"], [class*="chart"]', { timeout: 20000 })
-      .should('exist')
-      .should('have.length.at.least', 1);
-    
-    // Esperar un momento adicional para que los datos se rendericen
-    cy.wait(2000);
-    
-    cy.log('✅ Widgets cargados');
-  }
-
-  // Método para obtener datos específicos de widgets de consumo
-  obtenerDatosConsumo() {
-    cy.log('📈 Obteniendo datos de consumo desde los widgets...');
-    
-    return cy.get('body').then(() => {
-      const consumoData = {};
-      
-      // Buscar widgets relacionados con consumo
-      // Ajustar selectores según la estructura real del DOM
-      cy.get('[class*="consumo"], [class*="consumption"], [data-testid*="consumption"]', { timeout: 10000 })
-        .should('exist')
-        .then(($consumoWidgets) => {
-          $consumoWidgets.each((index, widget) => {
-            const $widget = Cypress.$(widget);
-            const title = $widget.find('[class*="title"], [class*="label"]').first().text();
-            const value = $widget.find('[class*="value"], [class*="amount"]').first().text();
-            
-            if (title && value) {
-              consumoData[title.trim()] = value.trim();
-            }
-          });
-        });
-      
-      return cy.wrap(consumoData);
-    });
-  }
-
-  // Método para obtener datos del saludo/bienvenida
+  // ============================================================
+  // MÉTODOS PARA SALUDO/BIENVENIDA
+  // ============================================================
+  
+  /**
+   * Obtener datos del saludo/bienvenida usando selectores específicos
+   * @returns {Cypress.Chainable<Object>} - Datos del saludo
+   */
   obtenerDatosSaludo() {
     cy.log('👋 Obteniendo datos del saludo...');
     
@@ -345,126 +50,652 @@ class HomeWidgetsPage {
         encontrado: false
       };
       
-      // Buscar saludo que contenga "Buenas" o "Buenos"
-      const $saludoElements = $body.find('*').filter((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim();
-        return text.includes('Buenas') || text.includes('Buenos');
-      });
+      // Buscar usando selector específico primero
+      const $saludoContainer = $body.find(this.saludoContainer).filter(':visible');
       
-      if ($saludoElements.length > 0) {
-        const $saludo = $saludoElements.first();
-        const saludoText = $saludo.text();
-        
-        // Extraer header (ej: "¡Buenas tardes, karen!")
-        const headerMatch = saludoText.match(/(¡?Buenas?\s+(?:tardes|días|noches)[^!]*!?)/i);
-        if (headerMatch) {
-          saludoData.header = headerMatch[1].trim();
+      if ($saludoContainer.length > 0) {
+        // Extraer header
+        const $header = $saludoContainer.find(this.saludoHeader);
+        if ($header.length > 0) {
+          saludoData.header = $header.text().trim();
         }
         
-        // Buscar value_str (fecha y sedes) - puede estar en el mismo elemento o en elementos hermanos
-        const valueMatch = saludoText.match(/(\d+\s+de\s+\w+,\s+\d{4}[^·]*·\s*\d+\s+Sedes?)/i);
-        if (valueMatch) {
-          saludoData.value_str = valueMatch[1].trim();
-        } else {
-          // Buscar en elementos cercanos
-          const $parent = $saludo.parent();
-          const parentText = $parent.text();
-          const valueMatch2 = parentText.match(/(\d+\s+de\s+\w+,\s+\d{4}[^·]*·\s*\d+\s+Sedes?)/i);
-          if (valueMatch2) {
-            saludoData.value_str = valueMatch2[1].trim();
+        // Extraer subtext (fecha y sedes)
+        const $subtext = $saludoContainer.find(this.saludoSubtext);
+        if ($subtext.length > 0) {
+          saludoData.value_str = $subtext.text().trim();
+        }
+        
+        saludoData.encontrado = saludoData.header.length > 0;
+        
+        if (saludoData.encontrado) {
+          cy.log(`✅ Saludo encontrado: "${saludoData.header}"`);
+          cy.log(`   📅 ${saludoData.value_str}`);
+        }
+      } else {
+        // Fallback: buscar por texto
+        const $saludoElements = $body.find('*').filter((i, el) => {
+          const $el = Cypress.$(el);
+          const text = $el.text().trim();
+          return (text.includes('Buenas') || text.includes('Buenos')) && $el.is(':visible');
+        });
+        
+        if ($saludoElements.length > 0) {
+          const $saludo = $saludoElements.first();
+          const saludoText = $saludo.text();
+          
+          const headerMatch = saludoText.match(/(¡?Buenas?\s+(?:tardes|días|noches)[^!]*!?)/i);
+          if (headerMatch) {
+            saludoData.header = headerMatch[1].trim();
           }
+          
+          const valueMatch = saludoText.match(/(\d+\s+de\s+\w+,\s+\d{4}[^·]*·\s*\d+\s+Sedes?)/i);
+          if (valueMatch) {
+            saludoData.value_str = valueMatch[1].trim();
+          } else {
+            const $parent = $saludo.parent();
+            const parentText = $parent.text();
+            const valueMatch2 = parentText.match(/(\d+\s+de\s+\w+,\s+\d{4}[^·]*·\s*\d+\s+Sedes?)/i);
+            if (valueMatch2) {
+              saludoData.value_str = valueMatch2[1].trim();
+            }
+          }
+          
+          saludoData.encontrado = saludoData.header.length > 0;
         }
-        
-        saludoData.encontrado = true;
+      }
+      
+      if (!saludoData.encontrado) {
+        cy.log('⚠️ No se encontró el saludo');
       }
       
       return cy.wrap(saludoData);
     });
   }
 
-  // Método para verificar si existe la gráfica de consumo energético
+  // ============================================================
+  // MÉTODOS PARA WIDGETS KPI (CONSUMO HOY/SEMANA/MES)
+  // ============================================================
+  
+  /**
+   * Obtener un widget KPI específico por su título
+   * @param {string} titulo - Título del widget ("Consumo hoy", "Consumo esta semana", "Consumo este mes")
+   * @returns {Cypress.Chainable<Object>} - Datos del widget KPI
+   */
+  obtenerWidgetKPI(titulo) {
+    cy.log(`📊 Obteniendo widget KPI: "${titulo}"...`);
+    
+    return cy.get('body').then(($body) => {
+      const widgetData = {
+        header: '',
+        value_str: '',
+        subheader: '',
+        porcentaje: '',
+        comparacion: '',
+        encontrado: false
+      };
+      
+      // Buscar todos los widgets KPI
+      const $kpiCards = $body.find(this.kpiCards).filter(':visible');
+      
+      if ($kpiCards.length === 0) {
+        cy.log(`⚠️ No se encontraron widgets KPI`);
+        return cy.wrap(widgetData);
+      }
+      
+      // Buscar el widget que coincida con el título
+      let $widgetEncontrado = null;
+      
+      $kpiCards.each((i, card) => {
+        const $card = Cypress.$(card);
+        const $heading = $card.find(this.kpiCardHeading);
+        
+        if ($heading.length > 0) {
+          const headingText = $heading.text().trim();
+          
+          // Comparación flexible del título
+          if (headingText.toLowerCase().includes(titulo.toLowerCase()) || 
+              titulo.toLowerCase().includes(headingText.toLowerCase())) {
+            $widgetEncontrado = $card;
+            widgetData.header = headingText;
+            return false; // break
+          }
+        }
+      });
+      
+      if ($widgetEncontrado && $widgetEncontrado.length > 0) {
+        // Extraer value_str
+        const $value = $widgetEncontrado.find(this.kpiCardValue);
+        if ($value.length > 0) {
+          const valueText = $value.text().trim();
+          // Extraer número + unidad (ej: "16K kWh")
+          const valueMatch = valueText.match(/(\d+(?:\.\d+)?[KMB]?)\s*kWh/i);
+          if (valueMatch) {
+            widgetData.value_str = `${valueMatch[1]} kWh`;
+          } else {
+            widgetData.value_str = valueText;
+          }
+        }
+        
+        // Extraer subheader (precio)
+        const $subheader = $widgetEncontrado.find(this.kpiCardSubheader);
+        if ($subheader.length > 0) {
+          const subheaderText = $subheader.text().trim();
+          const precioMatch = subheaderText.match(/\$[\d.]+[KMB]?\s*COP/i);
+          if (precioMatch) {
+            widgetData.subheader = precioMatch[0].trim();
+          }
+        }
+        
+        // Extraer porcentaje y comparación (tag)
+        const $tag = $widgetEncontrado.find('.bia-tag');
+        if ($tag.length > 0) {
+          const tagText = $tag.text().trim();
+          const porcentajeMatch = tagText.match(/([+-]?\d+%)/);
+          if (porcentajeMatch) {
+            widgetData.porcentaje = porcentajeMatch[1];
+          }
+        }
+        
+        // Extraer texto de comparación
+        const $comparacion = $widgetEncontrado.find('.CardWidget_comparison__EBA5L');
+        if ($comparacion.length > 0) {
+          widgetData.comparacion = $comparacion.text().trim();
+        }
+        
+        widgetData.encontrado = true;
+        
+        cy.log(`✅ Widget KPI encontrado: "${widgetData.header}"`);
+        cy.log(`   📊 Valor: ${widgetData.value_str}`);
+        cy.log(`   💰 Precio: ${widgetData.subheader || 'N/A'}`);
+        if (widgetData.porcentaje) {
+          cy.log(`   📈 Variación: ${widgetData.porcentaje}`);
+        }
+      } else {
+        cy.log(`⚠️ No se encontró el widget KPI con título: "${titulo}"`);
+      }
+      
+      return cy.wrap(widgetData);
+    });
+  }
+  
+  /**
+   * Obtener todos los widgets KPI de consumo
+   * Busca por múltiples selectores para asegurar que encuentra todos los widgets
+   * @returns {Cypress.Chainable<Object>} - Objeto con todos los widgets KPI
+   */
+  obtenerTodosLosWidgetsKPI() {
+    cy.log('📊 Obteniendo todos los widgets KPI...');
+    
+    return cy.get('body').then(($body) => {
+      const widgetsData = {};
+      const widgetsEncontrados = new Set(); // Para evitar duplicados
+      
+      // Estrategia 1: Buscar por data-demo-target="kpi-card"
+      const $kpiCards1 = $body.find('[data-demo-target="kpi-card"]').filter(':visible');
+      cy.log(`🔍 Estrategia 1 (data-demo-target): ${$kpiCards1.length} widget(s)`);
+      
+      // Estrategia 2: Buscar por clase bia-kpi-card directamente
+      const $kpiCards2 = $body.find('.bia-kpi-card').filter(':visible');
+      cy.log(`🔍 Estrategia 2 (clase bia-kpi-card): ${$kpiCards2.length} widget(s)`);
+      
+      // Estrategia 3: Buscar por CardWidget_container que contiene widgets KPI
+      const $kpiCards3 = $body.find('.CardWidget_container__d_EnN').filter(':visible');
+      cy.log(`🔍 Estrategia 3 (CardWidget_container): ${$kpiCards3.length} widget(s)`);
+      
+      // Combinar todos los resultados únicos
+      const todosLosCards = [];
+      
+      // Agregar cards de estrategia 1
+      $kpiCards1.each((i, card) => {
+        const cardId = Cypress.$(card)[0];
+        if (!widgetsEncontrados.has(cardId)) {
+          todosLosCards.push(card);
+          widgetsEncontrados.add(cardId);
+        }
+      });
+      
+      // Agregar cards de estrategia 2 que no estén ya incluidos
+      $kpiCards2.each((i, card) => {
+        const cardId = Cypress.$(card)[0];
+        if (!widgetsEncontrados.has(cardId)) {
+          todosLosCards.push(card);
+          widgetsEncontrados.add(cardId);
+        }
+      });
+      
+      // Agregar cards de estrategia 3 que no estén ya incluidos
+      $kpiCards3.each((i, card) => {
+        const cardId = Cypress.$(card)[0];
+        if (!widgetsEncontrados.has(cardId)) {
+          todosLosCards.push(card);
+          widgetsEncontrados.add(cardId);
+        }
+      });
+      
+      cy.log(`🔍 Total widgets KPI únicos encontrados: ${todosLosCards.length}`);
+      
+      // Procesar cada widget encontrado
+      todosLosCards.forEach((card, index) => {
+        const $card = Cypress.$(card);
+        
+        // Buscar el heading dentro del card
+        let $heading = $card.find(this.kpiCardHeading);
+        
+        // Si no encuentra con el selector específico, buscar por texto
+        if ($heading.length === 0) {
+          $heading = $card.find('.bia-kpi-card__heading');
+        }
+        
+        // Si aún no encuentra, buscar cualquier elemento con texto que parezca un título
+        if ($heading.length === 0) {
+          $heading = $card.find('*').filter((i, el) => {
+            const $el = Cypress.$(el);
+            const text = $el.text().trim();
+            // Buscar textos que parezcan títulos de widgets KPI
+            return (text.includes('Consumo') || text.includes('Reactiva') || text.includes('reactiva')) &&
+                   text.length < 50 && // Títulos no son muy largos
+                   $el.is(':visible');
+          }).first();
+        }
+        
+        if ($heading.length > 0) {
+          const header = $heading.text().trim();
+          
+          // Verificar que no sea un widget duplicado
+          if (widgetsData[header]) {
+            cy.log(`⚠️ Widget duplicado encontrado: "${header}", omitiendo...`);
+            return;
+          }
+          
+          // Extraer datos del widget
+          const widgetData = {
+            header: header,
+            value_str: '',
+            subheader: '',
+            porcentaje: '',
+            comparacion: ''
+          };
+          
+          // Extraer value_str (puede ser kWh, kVArh, o otros formatos)
+          let $value = $card.find(this.kpiCardValue);
+          if ($value.length === 0) {
+            $value = $card.find('.bia-kpi-card__value');
+          }
+          
+          if ($value.length > 0) {
+            const valueText = $value.text().trim();
+            // Buscar diferentes formatos: kWh, kVArh, o solo números
+            const valueMatch = valueText.match(/(\d+(?:\.\d+)?[KMB]?)\s*(kWh|kVArh|kVAh)?/i);
+            if (valueMatch) {
+              const unidad = valueMatch[2] || 'kWh';
+              widgetData.value_str = `${valueMatch[1]} ${unidad}`;
+            } else {
+              // Si no hay unidad, usar el texto completo
+              widgetData.value_str = valueText;
+            }
+          }
+          
+          // Extraer subheader
+          let $subheader = $card.find(this.kpiCardSubheader);
+          if ($subheader.length === 0) {
+            $subheader = $card.find('.CardWidget_subheaderContainer__nhRnz');
+          }
+          
+          if ($subheader.length > 0) {
+            const subheaderText = $subheader.text().trim();
+            const precioMatch = subheaderText.match(/\$[\d.]+[KMB]?\s*COP/i);
+            if (precioMatch) {
+              widgetData.subheader = precioMatch[0].trim();
+            }
+          }
+          
+          // Extraer porcentaje
+          const $tag = $card.find('.bia-tag');
+          if ($tag.length > 0) {
+            const tagText = $tag.text().trim();
+            const porcentajeMatch = tagText.match(/([+-]?\d+%)/);
+            if (porcentajeMatch) {
+              widgetData.porcentaje = porcentajeMatch[1];
+            }
+          }
+          
+          // Extraer comparación
+          const $comparacion = $card.find('.CardWidget_comparison__EBA5L');
+          if ($comparacion.length > 0) {
+            widgetData.comparacion = $comparacion.text().trim();
+          }
+          
+          widgetsData[header] = widgetData;
+          
+          cy.log(`✅ Widget ${index + 1} extraído: "${header}"`);
+        } else {
+          cy.log(`⚠️ Widget ${index + 1} encontrado pero sin heading/título`);
+        }
+      });
+      
+      cy.log(`📊 Total widgets KPI extraídos: ${Object.keys(widgetsData).length}`);
+      cy.log(`   Widgets: ${Object.keys(widgetsData).join(', ')}`);
+      
+      return cy.wrap(widgetsData);
+    });
+  }
+  
+  /**
+   * Obtener el widget de Reactiva Inductiva Penalizada específicamente
+   * @returns {Cypress.Chainable<Object>} - Datos del widget
+   */
+  obtenerWidgetReactivaInductivaPenalizada() {
+    cy.log('⚡ Obteniendo widget de Reactiva Inductiva Penalizada...');
+    
+    return this.obtenerWidgetKPI('Reactiva inductiva penalizada').then((widget) => {
+      if (!widget.encontrado) {
+        // Intentar variaciones del nombre
+        return this.obtenerWidgetKPI('reactiva inductiva').then((widget2) => {
+          if (!widget2.encontrado) {
+            return this.obtenerWidgetKPI('reactiva').then((widget3) => {
+              return cy.wrap(widget3);
+            });
+          }
+          return cy.wrap(widget2);
+        });
+      }
+      return cy.wrap(widget);
+    });
+  }
+
+  // ============================================================
+  // MÉTODOS PARA GRÁFICA DE CONSUMO ENERGÉTICO
+  // ============================================================
+  
+  /**
+   * Verificar y obtener datos de la gráfica de consumo energético
+   * @returns {Cypress.Chainable<Object>} - Datos de la gráfica
+   */
   verificarGraficaConsumo() {
     cy.log('📊 Verificando gráfica de consumo energético...');
     
     return cy.get('body').then(($body) => {
       const graficaData = {
         encontrada: false,
-        titulo: ''
+        titulo: '',
+        tieneCanvas: false
       };
       
-      // Buscar elementos que contengan "Consumo energético" o "consumo energético"
-      const $graficaElements = $body.find('*').filter((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim().toLowerCase();
-        return text.includes('consumo energético') || text.includes('consumo energetico');
-      });
+      // Buscar usando selector específico con data-*
+      const $graficaContainer = $body.find(this.graficaConsumoContainer).filter(':visible');
       
-      if ($graficaElements.length > 0) {
+      if ($graficaContainer.length > 0) {
         graficaData.encontrada = true;
-        graficaData.titulo = $graficaElements.first().text().trim();
+        
+        // Extraer título
+        const $titulo = $graficaContainer.find(this.graficaConsumoTitulo);
+        if ($titulo.length > 0) {
+          graficaData.titulo = $titulo.text().trim();
+        }
+        
+        // Verificar que tenga canvas (gráfica renderizada)
+        const $canvas = $graficaContainer.find(this.graficaConsumoCanvas);
+        if ($canvas.length > 0) {
+          graficaData.tieneCanvas = true;
+        }
+        
+        cy.log(`✅ Gráfica encontrada: "${graficaData.titulo}"`);
+        cy.log(`   🎨 Canvas renderizado: ${graficaData.tieneCanvas ? 'Sí' : 'No'}`);
+      } else {
+        // Fallback: buscar por texto
+        const $graficaElements = $body.find('*').filter((i, el) => {
+          const $el = Cypress.$(el);
+          const text = $el.text().trim().toLowerCase();
+          return text.includes('consumo energético') || text.includes('consumo energetico');
+        });
+        
+        if ($graficaElements.length > 0) {
+          graficaData.encontrada = true;
+          graficaData.titulo = $graficaElements.first().text().trim();
+          cy.log(`✅ Gráfica encontrada (fallback): "${graficaData.titulo}"`);
+        } else {
+          cy.log('⚠️ No se encontró la gráfica de consumo energético');
+        }
       }
       
       return cy.wrap(graficaData);
     });
   }
 
-  // Método para verificar si existe el modal/sección de facturas
+  // ============================================================
+  // MÉTODOS PARA WIDGET DE FACTURAS
+  // ============================================================
+  
+  /**
+   * Verificar y obtener datos del widget de facturas
+   * @returns {Cypress.Chainable<Object>} - Datos del widget de facturas
+   */
   verificarFacturas() {
-    cy.log('💰 Verificando sección de facturas...');
+    cy.log('💰 Verificando widget de facturas...');
     
     return cy.get('body').then(($body) => {
       const facturasData = {
         encontrada: false,
         header: '',
-        texto: ''
+        proximaFactura: '',
+        mes: '',
+        limitePago: '',
+        estado: ''
       };
       
-      // Buscar elementos que contengan "Facturas"
-      const $facturasElements = $body.find('*').filter((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim();
-        return text.includes('Facturas') || text === 'Facturas';
-      });
+      // Buscar usando selector específico con data-*
+      const $facturasContainer = $body.find(this.facturasContainer).filter(':visible');
       
-      if ($facturasElements.length > 0) {
+      if ($facturasContainer.length > 0) {
         facturasData.encontrada = true;
-        const $factura = $facturasElements.first();
         facturasData.header = 'Facturas';
-        facturasData.texto = $factura.text().trim();
+        
+        // Extraer título
+        const $titulo = $facturasContainer.find(this.facturasTitulo);
+        if ($titulo.length > 0) {
+          facturasData.header = $titulo.text().trim();
+        }
+        
+        // Extraer datos de la tabla
+        const $rows = $facturasContainer.find('.TableWidget_row__QPWFB');
+        $rows.each((i, row) => {
+          const $row = Cypress.$(row);
+          const rowText = $row.text().trim();
+          
+          if (rowText.includes('Próxima factura')) {
+            const match = rowText.match(/Próxima factura\s+(.+)/i);
+            if (match) {
+              facturasData.proximaFactura = match[1].trim();
+            }
+          } else if (rowText.includes('Mes')) {
+            const match = rowText.match(/Mes\s+(.+)/i);
+            if (match) {
+              facturasData.mes = match[1].trim();
+            }
+          } else if (rowText.includes('Límite de pago')) {
+            const match = rowText.match(/Límite de pago\s+(.+)/i);
+            if (match) {
+              facturasData.limitePago = match[1].trim();
+            }
+          }
+        });
+        
+        // Extraer estado (tag)
+        const $tag = $facturasContainer.find('.bia-tag');
+        if ($tag.length > 0) {
+          facturasData.estado = $tag.text().trim();
+        }
+        
+        cy.log(`✅ Widget de facturas encontrado`);
+        cy.log(`   📅 Próxima factura: ${facturasData.proximaFactura || 'N/A'}`);
+        cy.log(`   📆 Mes: ${facturasData.mes || 'N/A'}`);
+        cy.log(`   ⏰ Límite de pago: ${facturasData.limitePago || 'N/A'}`);
+        cy.log(`   ✅ Estado: ${facturasData.estado || 'N/A'}`);
+      } else {
+        // Fallback: buscar por texto
+        const $facturasElements = $body.find('*').filter((i, el) => {
+          const $el = Cypress.$(el);
+          const text = $el.text().trim();
+          return text.includes('Facturas') && $el.is(':visible');
+        });
+        
+        if ($facturasElements.length > 0) {
+          facturasData.encontrada = true;
+          facturasData.header = 'Facturas';
+          cy.log(`✅ Widget de facturas encontrado (fallback)`);
+        } else {
+          cy.log('⚠️ No se encontró el widget de facturas');
+        }
       }
       
       return cy.wrap(facturasData);
     });
   }
 
-  // Método para verificar si existe la gráfica de variaciones de consumo
+  // ============================================================
+  // MÉTODOS PARA WIDGET DE VARIACIONES DE CONSUMO
+  // ============================================================
+  
+  /**
+   * Verificar y obtener datos del widget de variaciones de consumo
+   * @returns {Cypress.Chainable<Object>} - Datos del widget de variaciones
+   */
   verificarVariacionesConsumo() {
-    cy.log('📈 Verificando gráfica de variaciones de consumo...');
+    cy.log('📈 Verificando widget de variaciones de consumo...');
     
     return cy.get('body').then(($body) => {
       const variacionesData = {
         encontrada: false,
-        header: ''
+        header: '',
+        filas: []
       };
       
-      // Buscar elementos que contengan "Variaciones de consumo"
-      const $variacionesElements = $body.find('*').filter((i, el) => {
-        const $el = Cypress.$(el);
-        const text = $el.text().trim();
-        return text.includes('Variaciones de consumo') || text === 'Variaciones de consumo';
-      });
+      // Buscar usando selector específico con data-*
+      const $variacionesContainer = $body.find(this.variacionesContainer).filter(':visible');
       
-      if ($variacionesElements.length > 0) {
+      if ($variacionesContainer.length > 0) {
         variacionesData.encontrada = true;
         variacionesData.header = 'Variaciones de consumo';
+        
+        // Extraer título
+        const $titulo = $variacionesContainer.find(this.variacionesTitulo);
+        if ($titulo.length > 0) {
+          variacionesData.header = $titulo.text().trim();
+        }
+        
+        // Extraer filas de la tabla
+        const $rows = $variacionesContainer.find('tbody tr');
+        $rows.each((i, row) => {
+          const $row = Cypress.$(row);
+          const rowData = {
+            sede: '',
+            ciudad: '',
+            periodo1: '',
+            periodo2: '',
+            variacion: '',
+            porcentaje: ''
+          };
+          
+          // Extraer nombre de sede
+          const $sedeName = $row.find('.TableWidget_siteName__9szEm');
+          if ($sedeName.length > 0) {
+            rowData.sede = $sedeName.text().trim();
+          }
+          
+          // Extraer ciudad
+          const $ciudad = $row.find('.TableWidget_siteCity__JpFok');
+          if ($ciudad.length > 0) {
+            rowData.ciudad = $ciudad.text().trim();
+          }
+          
+          // Extraer valores de períodos y variación
+          const $cells = $row.find('td');
+          if ($cells.length >= 5) {
+            // Asumir estructura: Sede | Periodo1 | Periodo2 | Variación | Porcentaje
+            const periodo1Text = Cypress.$($cells[1]).text().trim();
+            const periodo2Text = Cypress.$($cells[2]).text().trim();
+            const variacionText = Cypress.$($cells[3]).text().trim();
+            
+            rowData.periodo1 = periodo1Text;
+            rowData.periodo2 = periodo2Text;
+            rowData.variacion = variacionText;
+            
+            // Extraer porcentaje del tag
+            const $tag = Cypress.$($cells[4]).find('.bia-tag');
+            if ($tag.length > 0) {
+              rowData.porcentaje = $tag.text().trim();
+            }
+          }
+          
+          if (rowData.sede) {
+            variacionesData.filas.push(rowData);
+          }
+        });
+        
+        cy.log(`✅ Widget de variaciones encontrado`);
+        cy.log(`   📊 Filas encontradas: ${variacionesData.filas.length}`);
+      } else {
+        // Fallback: buscar por texto
+        const $variacionesElements = $body.find('*').filter((i, el) => {
+          const $el = Cypress.$(el);
+          const text = $el.text().trim();
+          return text.includes('Variaciones de consumo') && $el.is(':visible');
+        });
+        
+        if ($variacionesElements.length > 0) {
+          variacionesData.encontrada = true;
+          variacionesData.header = 'Variaciones de consumo';
+          cy.log(`✅ Widget de variaciones encontrado (fallback)`);
+        } else {
+          cy.log('⚠️ No se encontró el widget de variaciones de consumo');
+        }
       }
       
       return cy.wrap(variacionesData);
     });
   }
 
-  // Método para verificar si existe el proceso de instalación
+  // ============================================================
+  // MÉTODOS COMPATIBILIDAD (MANTENER PARA NO ROMPER TESTS EXISTENTES)
+  // ============================================================
+  
+  /**
+   * Obtener datos de widgets desde el UI
+   * Extrae SOLO los widgets KPI que están visibles en el frontend
+   * @returns {Cypress.Chainable<Object>} - Datos de widgets
+   */
+  obtenerDatosWidgets() {
+    cy.log('📊 Obteniendo datos de los widgets desde el UI...');
+    
+    // Usar el nuevo método mejorado para widgets KPI
+    return this.obtenerTodosLosWidgetsKPI().then((kpiWidgets) => {
+      // Convertir al formato esperado por los tests existentes
+      const widgetsData = {};
+      
+      Object.keys(kpiWidgets).forEach((key) => {
+        widgetsData[key] = {
+          header: kpiWidgets[key].header,
+          value_str: kpiWidgets[key].value_str,
+          subheader: kpiWidgets[key].subheader
+        };
+      });
+      
+      cy.log(`📊 Total widgets KPI extraídos del UI: ${Object.keys(widgetsData).length}`);
+      cy.log(`   Widgets encontrados: ${Object.keys(widgetsData).join(', ')}`);
+      
+      return cy.wrap(widgetsData);
+    });
+  }
+
+  // ============================================================
+  // MÉTODOS ADICIONALES (COMPATIBILIDAD)
+  // ============================================================
+  
+  /**
+   * Verificar si existe el proceso de instalación (método legacy)
+   * @returns {Cypress.Chainable<Object>} - Datos del proceso
+   */
   verificarProcesoInstalacion() {
     cy.log('🔧 Verificando proceso de instalación...');
     
@@ -478,26 +709,124 @@ class HomeWidgetsPage {
       const $procesoElements = $body.find('*').filter((i, el) => {
         const $el = Cypress.$(el);
         const text = $el.text().trim();
-        return text.includes('Proceso de instalación') || text === 'Proceso de instalación';
+        return text.includes('Proceso de instalación') && $el.is(':visible');
       });
       
       if ($procesoElements.length > 0) {
         procesoData.encontrado = true;
         procesoData.header = 'Proceso de instalación';
+        cy.log('✅ Proceso de instalación encontrado');
+      } else {
+        cy.log('⚠️ No se encontró el proceso de instalación');
       }
       
       return cy.wrap(procesoData);
     });
   }
 
-  // Método para interceptar la llamada al API de widgets y obtener los datos
+  // ============================================================
+  // MÉTODOS DE ESPERA Y CONFIGURACIÓN
+  // ============================================================
+  
+  /**
+   * Limpiar cache del navegador antes de cargar widgets
+   * Esto asegura que siempre se obtengan datos frescos del API
+   * NO limpia cookies de autenticación para mantener la sesión
+   */
+  limpiarCache() {
+    cy.log('🧹 Limpiando cache del navegador (manteniendo sesión)...');
+    
+    // Limpiar localStorage (excepto datos de autenticación si es necesario)
+    cy.window().then((win) => {
+      // Guardar datos importantes de autenticación si existen
+      const authData = {};
+      const authKeys = ['userData', 'bia_session_profile', 'persistSession', 'bia_auth_in_progress'];
+      
+      authKeys.forEach(key => {
+        const value = win.localStorage.getItem(key);
+        if (value) {
+          authData[key] = value;
+        }
+      });
+      
+      // Limpiar todo localStorage
+      win.localStorage.clear();
+      
+      // Restaurar datos de autenticación
+      Object.keys(authData).forEach(key => {
+        win.localStorage.setItem(key, authData[key]);
+      });
+      
+      cy.log('   ✅ localStorage limpiado (datos de auth preservados)');
+    });
+    
+    // Limpiar sessionStorage
+    cy.window().then((win) => {
+      win.sessionStorage.clear();
+      cy.log('   ✅ sessionStorage limpiado');
+    });
+    
+    // NO limpiar cookies para mantener la sesión de autenticación
+    // cy.clearCookies(); // Comentado para mantener sesión
+    
+    // Limpiar cache del navegador usando cy.reload con opciones
+    // Esto se hace mejor con cy.reload({ force: true }) en el test
+    
+    // Esperar un momento para que se complete la limpieza
+    cy.wait(500);
+    
+    cy.log('✅ Cache limpiado (sesión preservada)');
+  }
+  
+  /**
+   * Esperar a que los widgets carguen completamente
+   * @param {number} timeout - Tiempo máximo de espera en ms
+   */
+  esperarWidgetsCarguen(timeout = 20000) {
+    cy.log('⏳ Esperando a que los widgets del home carguen...');
+    
+    // NO limpiar cache aquí para evitar recargas innecesarias
+    // El cache se limpia antes de llegar a esta función si es necesario
+    
+    // Esperar contenedor principal
+    cy.get(this.homeContainer, { timeout }).should('exist');
+    cy.get(this.homeGrid, { timeout }).should('exist');
+    
+    // Esperar al menos un widget KPI
+    cy.get(this.kpiCards, { timeout }).should('exist').should('have.length.at.least', 1);
+    
+    // Esperar un momento adicional para que los datos se rendericen
+    cy.wait(2000);
+    
+    cy.log('✅ Widgets cargados');
+  }
+
+  /**
+   * Interceptar la llamada al API de widgets
+   */
   interceptarApiWidgets() {
     cy.log('🔗 Interceptando llamada al API de widgets...');
     
-    return cy.intercept('POST', '**/ems-api/app-consumptions/home/widgets').as('getWidgetsApi');
+    // Interceptar y modificar la request para evitar cache
+    return cy.intercept('POST', '**/ems-api/app-consumptions/home/widgets', (req) => {
+      // Agregar headers para evitar cache
+      req.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate';
+      req.headers['Pragma'] = 'no-cache';
+      req.headers['Expires'] = '0';
+      
+      // Agregar timestamp al body para forzar nueva request
+      if (req.body && typeof req.body === 'object') {
+        req.body._nocache = Date.now();
+      }
+      
+      req.continue();
+    }).as('getWidgetsApi');
   }
 
-  // Método para esperar y obtener la respuesta del API de widgets
+  /**
+   * Obtener datos del API de widgets desde la interceptación
+   * @returns {Cypress.Chainable<Object>} - Respuesta del API
+   */
   obtenerDatosApiWidgets() {
     cy.log('📡 Esperando respuesta del API de widgets...');
     

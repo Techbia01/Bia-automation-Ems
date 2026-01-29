@@ -93,6 +93,13 @@ describe('Home - Validación Completa UI vs API', () => {
       });
     }).then(({ token, contractIds: ids }) => {
       homePage.verificarQueCargo();
+      
+      // Limpiar cache antes de cargar widgets para obtener datos frescos
+      // NOTA: NO recargamos la página para evitar interrumpir el flujo
+      cy.log('🧹 Limpiando cache antes de cargar widgets...');
+      homeWidgetsPage.limpiarCache();
+      
+      // Esperar a que los widgets carguen (sin recargar la página)
       homeWidgetsPage.esperarWidgetsCarguen();
       cy.wait(3000);
 
@@ -125,6 +132,40 @@ describe('Home - Validación Completa UI vs API', () => {
           cy.log('   Continuando con validaciones del UI solamente...');
         } else {
           cy.log(`✅ Datos del API obtenidos: ${apiData.length} elementos`);
+          
+          // Log detallado de la estructura completa del API
+          cy.log('');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('📡 RESPUESTA COMPLETA DEL API');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log(`Total widgets en respuesta: ${apiData.length}`);
+          cy.log('');
+          
+          apiData.forEach((widget, index) => {
+            cy.log(`Widget API ${index + 1}:`);
+            cy.log(`   kind: "${widget.kind || 'N/A'}"`);
+            cy.log(`   header: "${widget.header || 'N/A'}"`);
+            cy.log(`   value_str: "${widget.value_str || 'N/A'}"`);
+            cy.log(`   subheader: "${widget.subheader || 'N/A'}"`);
+            cy.log(`   value: ${widget.value !== undefined ? widget.value : 'N/A'}`);
+            cy.log(`   type: "${widget.type || 'N/A'}"`);
+            cy.log('');
+          });
+          
+          // Contar widgets por kind
+          const widgetsPorKind = {};
+          apiData.forEach(w => {
+            const kind = w.kind || 'sin_kind';
+            widgetsPorKind[kind] = (widgetsPorKind[kind] || 0) + 1;
+          });
+          
+          cy.log('Resumen por kind:');
+          Object.keys(widgetsPorKind).forEach(kind => {
+            cy.log(`   - ${kind}: ${widgetsPorKind[kind]} widget(s)`);
+          });
+          cy.log('');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('');
         }
         
         // ============================================================
@@ -174,39 +215,158 @@ describe('Home - Validación Completa UI vs API', () => {
         cy.log('═══════════════════════════════════════════════════════');
         
         return homeWidgetsPage.obtenerDatosWidgets().then((uiWidgetsData) => {
-          // Filtrar solo widgets de consumo del API
-          const widgetsConsumo = apiData.filter(w => 
-            w.kind === 'active_energy_consumption' || 
-            w.header?.includes('Consumo')
-          );
+          // IMPORTANTE: Comparar SOLO los widgets que vienen del API
+          // El API es la fuente de verdad - comparamos frontend contra API
+          // Filtrar widgets KPI: consumo (active_energy_consumption) y reactiva
           
-          cy.log(`📋 Widgets de consumo en UI: ${Object.keys(uiWidgetsData).length}`);
-          cy.log(`📋 Widgets de consumo en API: ${widgetsConsumo.length}`);
+          cy.log('🔍 Aplicando filtro para widgets KPI...');
+          cy.log(`   Total widgets del API: ${apiData.length}`);
+          
+          const widgetsConsumo = apiData.filter(w => {
+            const kind = (w.kind || '').toLowerCase();
+            const header = (w.header || '').toLowerCase();
+            
+            // Widgets de consumo activo (por kind)
+            if (kind === 'active_energy_consumption') {
+              cy.log(`   ✅ Incluido por kind: "${w.header}" (kind: "${w.kind}")`);
+              return true;
+            }
+            
+            // Widgets de reactiva inductiva penalizada (por kind)
+            if (kind === 'reactive_inductive_penalized' || 
+                kind.includes('reactive') || 
+                kind.includes('reactiva')) {
+              cy.log(`   ✅ Incluido por kind (reactiva): "${w.header}" (kind: "${w.kind}")`);
+              return true;
+            }
+            
+            // Si el header indica reactiva (aunque no tenga kind o tenga otro kind)
+            if (header.includes('reactiva') || header.includes('inductiva') || header.includes('penalizada')) {
+              cy.log(`   ✅ Incluido por header (reactiva): "${w.header}" (kind: "${w.kind || 'N/A'}")`);
+              return true;
+            }
+            
+            // Widgets de consumo por header (por si acaso no tienen el kind correcto)
+            if (header.includes('consumo') && 
+                (header.includes('hoy') || header.includes('semana') || header.includes('mes'))) {
+              cy.log(`   ✅ Incluido por header (consumo): "${w.header}" (kind: "${w.kind || 'N/A'}")`);
+              return true;
+            }
+            
+            cy.log(`   ❌ Excluido: "${w.header}" (kind: "${w.kind || 'N/A'}")`);
+            return false;
+          });
+          
+          cy.log(`📊 Resultado del filtro: ${widgetsConsumo.length} widget(s) KPI del API`);
           cy.log('');
           
-          // Mostrar widgets encontrados en UI
-          cy.log('📋 Widgets encontrados en el UI:');
-          Object.keys(uiWidgetsData).forEach((key) => {
-            const widget = uiWidgetsData[key];
-            cy.log(`   - "${key}"`);
-            cy.log(`     value_str: "${widget.value_str || 'N/A'}"`);
-            cy.log(`     subheader: "${widget.subheader || 'N/A'}"`);
+          // Log detallado de qué widgets pasaron el filtro
+          cy.log('📋 Widgets que pasaron el filtro y se compararán:');
+          widgetsConsumo.forEach((widget, index) => {
+            cy.log(`   ${index + 1}. "${widget.header || 'Sin header'}"`);
+            cy.log(`      kind: "${widget.kind || 'N/A'}"`);
+            cy.log(`      value_str: "${widget.value_str || 'N/A'}"`);
+            cy.log(`      subheader: "${widget.subheader || 'N/A'}"`);
           });
           cy.log('');
           
-          // Mostrar widgets del API
-          cy.log('📋 Widgets del API:');
+          cy.log(`📡 Widgets recibidos del API (total): ${apiData.length}`);
+          cy.log(`📊 Widgets KPI del API a comparar: ${widgetsConsumo.length}`);
+          
+          // Log detallado de TODOS los widgets del API
+          cy.log('');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('📋 ANÁLISIS: Widgets del API vs Frontend');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('');
+          cy.log('📡 TODOS los widgets que retorna el API:');
+          apiData.forEach((widget, index) => {
+            cy.log(`   ${index + 1}. kind: "${widget.kind || 'N/A'}"`);
+            cy.log(`      header: "${widget.header || 'N/A'}"`);
+            cy.log(`      value_str: "${widget.value_str || 'N/A'}"`);
+            cy.log(`      subheader: "${widget.subheader || 'N/A'}"`);
+          });
+          cy.log('');
+          
+          cy.log(`📊 Widgets KPI del API (kind: active_energy_consumption o reactive_inductive_penalized):`);
           widgetsConsumo.forEach((widget, index) => {
             cy.log(`   ${index + 1}. "${widget.header || 'Sin header'}"`);
+            cy.log(`      kind: "${widget.kind || 'N/A'}"`);
             cy.log(`      value_str: "${widget.value_str || 'N/A'}"`);
             cy.log(`      subheader: "${widget.subheader || 'N/A'}"`);
             cy.log(`      valor numérico: ${widget.value || 'N/A'}`);
-            cy.log(`      kind: ${widget.kind || 'N/A'}`);
           });
+          cy.log('');
+          
+          cy.log(`🖥️ Widgets encontrados en el Frontend (UI):`);
+          cy.log(`   Total: ${Object.keys(uiWidgetsData).length} widget(s)`);
+          Object.keys(uiWidgetsData).forEach((key, index) => {
+            const widget = uiWidgetsData[key];
+            cy.log(`   ${index + 1}. "${key}"`);
+            cy.log(`      value_str: "${widget.value_str || 'N/A'}"`);
+            cy.log(`      subheader: "${widget.subheader || 'N/A'}"`);
+          });
+          cy.log('');
+          
+          // Verificar si hay widgets en el frontend que NO están en el API
+          const widgetsSoloEnFrontend = Object.keys(uiWidgetsData).filter(uiHeader => {
+            return !widgetsConsumo.some(apiWidget => {
+              const apiHeader = (apiWidget.header || '').toLowerCase().trim();
+              const uiHeaderNorm = uiHeader.toLowerCase().trim();
+              return apiHeader === uiHeaderNorm ||
+                     apiHeader.includes(uiHeaderNorm) ||
+                     uiHeaderNorm.includes(apiHeader);
+            });
+          });
+          
+          if (widgetsSoloEnFrontend.length > 0) {
+            cy.log(`⚠️ Widgets que están en el Frontend pero NO en el API (${widgetsSoloEnFrontend.length}):`);
+            widgetsSoloEnFrontend.forEach((header) => {
+              cy.log(`   - "${header}"`);
+            });
+            cy.log('   ℹ️ Estos widgets NO se compararán porque no vienen del API');
+            cy.log('');
+          }
+          
+          cy.log(`✅ Se compararán ${widgetsConsumo.length} widget(s) del API contra el Frontend`);
           cy.log('');
           
           // Usar la función helper para comparar
           const comparacion = compararDatosWidgets(uiWidgetsData, widgetsConsumo);
+          
+          // ============================================================
+          // VALIDACIONES CRÍTICAS: FALLAR SI HAY DISCREPANCIAS
+          // ============================================================
+          cy.log('');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('🚨 VALIDACIONES CRÍTICAS - EL TEST FALLARÁ SI HAY DISCREPANCIAS');
+          cy.log('═══════════════════════════════════════════════════════');
+          
+          // VALIDACIÓN 1: Verificar que todos los widgets del API estén en el frontend
+          expect(comparacion.apiSolo.length, 
+            `El Frontend NO muestra ${comparacion.apiSolo.length} widget(s) que retorna el API. Widgets faltantes: ${comparacion.apiSolo.map(w => w.widget).join(', ')}`
+          ).to.eq(0);
+          
+          // VALIDACIÓN 2: Verificar que el número de widgets coincida
+          const widgetsEsperadosEnFrontend = widgetsConsumo.length;
+          const widgetsEncontradosEnFrontend = Object.keys(uiWidgetsData).length;
+          
+          expect(widgetsEncontradosEnFrontend, 
+            `Discrepancia en cantidad: Frontend muestra ${widgetsEncontradosEnFrontend} widget(s) pero el API retorna ${widgetsEsperadosEnFrontend}`
+          ).to.be.at.least(widgetsEsperadosEnFrontend);
+          
+          // VALIDACIÓN 3: Verificar que los valores coincidan (sin diferencias)
+          expect(comparacion.diferencias.length,
+            `${comparacion.diferencias.length} widget(s) tienen valores diferentes entre API y Frontend. Detalles en los logs.`
+          ).to.eq(0);
+          
+          // Si llegamos aquí, todas las validaciones pasaron
+          cy.log('✅ Todas las validaciones críticas pasaron');
+          cy.log(`   - Todos los widgets del API están en el Frontend`);
+          cy.log(`   - Todos los valores coinciden`);
+          cy.log('');
+          cy.log('═══════════════════════════════════════════════════════');
+          cy.log('');
           
           // Validar cada widget del API individualmente usando los resultados de la comparación
           const validacionesIndividuales = [];
@@ -282,11 +442,15 @@ describe('Home - Validación Completa UI vs API', () => {
               cy.log(`      🎯 RESULTADO: ✅ Todas las validaciones correctas`);
               cy.log(`         value_str: ✅ | subheader: ✅`);
             } else if (diferencia) {
-              cy.log(`      🎯 RESULTADO: ⚠️ Se encontraron diferencias`);
+              cy.log(`      🎯 RESULTADO: ❌ ERROR - Se encontraron diferencias`);
               cy.log(`         value_str: ${diferencia.comparaciones.value_str ? '✅' : '❌'}`);
               cy.log(`         subheader: ${diferencia.comparaciones.subheader ? '✅' : '❌'}`);
+              cy.log(`         UI value_str: "${uiWidgetEncontrado?.value_str || 'N/A'}"`);
+              cy.log(`         API value_str: "${apiWidget.value_str || 'N/A'}"`);
+              cy.log(`         UI subheader: "${uiWidgetEncontrado?.subheader || 'N/A'}"`);
+              cy.log(`         API subheader: "${apiWidget.subheader || 'N/A'}"`);
             } else if (soloEnAPI) {
-              cy.log(`      🎯 RESULTADO: ❌ Widget no encontrado en UI`);
+              cy.log(`      🎯 RESULTADO: ❌ ERROR - Widget no encontrado en UI`);
             }
             
             cy.log('');
@@ -646,11 +810,19 @@ describe('Home - Validación Completa UI vs API', () => {
           
           cy.log(`   Total elementos validados: 6`);
           cy.log(`   Widgets de consumo (validación individual):`);
-          cy.log(`      - Total en UI: ${totalWidgetsUI} widgets`);
-          cy.log(`      - Total en API: ${totalWidgetsAPI} widgets`);
-          cy.log(`      - ✅ Correctos: ${widgetsCorrectos}/${totalWidgetsAPI}`);
-          cy.log(`      - ⚠️ Con diferencias: ${widgetsConDiferencias}/${totalWidgetsAPI}`);
-          cy.log(`      - ❌ No encontrados: ${widgetsNoEncontrados}/${totalWidgetsAPI}`);
+          cy.log(`      📡 Widgets que retorna el API: ${totalWidgetsAPI} widget(s)`);
+          cy.log(`      🖥️ Widgets encontrados en el Frontend: ${totalWidgetsUI} widget(s)`);
+          cy.log(`      📊 Comparación (API vs Frontend):`);
+          cy.log(`         - ✅ Correctos: ${widgetsCorrectos}/${totalWidgetsAPI}`);
+          cy.log(`         - ⚠️ Con diferencias: ${widgetsConDiferencias}/${totalWidgetsAPI}`);
+          cy.log(`         - ❌ No encontrados en Frontend: ${widgetsNoEncontrados}/${totalWidgetsAPI}`);
+          
+          // Mostrar si hay widgets en el frontend que no están en el API
+          if (totalWidgetsUI > totalWidgetsAPI) {
+            const diferencia = totalWidgetsUI - totalWidgetsAPI;
+            cy.log(`      ℹ️ Nota: Hay ${diferencia} widget(s) más en el Frontend que no vienen del API`);
+            cy.log(`         (Estos widgets NO se comparan porque el API es la fuente de verdad)`);
+          }
           cy.log('');
           
           const todasLasValidacionesCorrectas = widgetsCorrectos === totalWidgetsAPI && widgetsConDiferencias === 0 && widgetsNoEncontrados === 0;
