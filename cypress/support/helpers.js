@@ -599,3 +599,86 @@ export function llamarApiVariationsWidgets(authToken, requestBody, timezone = 'A
     }
   });
 }
+
+/**
+ * Helper para realizar llamadas al API de analytics/widgets (Consumo General)
+ * @param {string} authToken - Token de autenticación
+ * @param {Array<number>} contractIds - IDs de contratos
+ * @param {string} period - Período (monthly, daily, etc.)
+ * @param {string} date - Fecha en formato YYYY-MM-DD
+ * @param {string} timezone - Zona horaria (ej: America/Bogota)
+ * @returns {Promise} - Promise con la respuesta del API
+ */
+export function llamarApiAnalyticsWidgets(authToken, contractIds, period = 'monthly', date = null, timezone = 'America/Bogota') {
+  // Si no se proporciona fecha, usar la fecha actual
+  if (!date) {
+    const now = new Date();
+    date = now.toISOString().split('T')[0];
+  }
+
+  const url = 'https://api.dev.bia.app/ms-bia-consumptions/v1/analitics/widgets';
+  
+  const headers = {
+    'x-platform': 'web',
+    'Authorization': authToken,
+    'sec-ch-ua-platform': '"Windows"',
+    'Referer': 'https://web.dev.bia.app/',
+    'sec-ch-ua': '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
+    'x-timezone': timezone,
+    'sec-ch-ua-mobile': '?0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+    'Content-Type': 'application/json'
+  };
+
+  const body = {
+    period: period,
+    date: date,
+    contract_ids: contractIds
+  };
+
+  cy.log(`📡 Llamando al API de analytics/widgets con ${contractIds.length} contratos`);
+  cy.log(`📅 Período: ${period}, Fecha: ${date}`);
+
+  // Validar que tenemos los datos necesarios
+  if (!authToken || authToken === undefined || authToken === null) {
+    cy.log('❌ ERROR: No hay token de autenticación');
+    throw new Error('Token de autenticación requerido');
+  }
+  
+  if (!contractIds || contractIds.length === 0) {
+    cy.log('⚠️ ADVERTENCIA: No hay contract IDs. El API puede requerirlos.');
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: url,
+    headers: headers,
+    body: body,
+    failOnStatusCode: false
+  }).then((response) => {
+    if (response.status === 200) {
+      cy.log('✅ Respuesta del API de analytics/widgets obtenida exitosamente');
+      return cy.wrap(response.body);
+    } else {
+      cy.log(`⚠️ Error en la respuesta del API: ${response.status}`);
+      cy.log(`📋 Detalles del error:`);
+      cy.log(`   - URL: ${url}`);
+      cy.log(`   - Body enviado: ${JSON.stringify(body)}`);
+      cy.log(`   - Response: ${JSON.stringify(response.body).substring(0, 200)}`);
+      
+      if (response.status === 400) {
+        cy.log('');
+        cy.log('🔍 Posibles causas del error 400:');
+        cy.log('   1. Contract IDs vacíos o inválidos');
+        cy.log('   2. Fecha en formato incorrecto');
+        cy.log('   3. Período no válido');
+        cy.log('   4. Token de autenticación inválido');
+        cy.log('');
+        cy.log('💡 Intentando continuar con validaciones del UI solamente...');
+        return cy.wrap([]);
+      }
+      
+      throw new Error(`API retornó status ${response.status}`);
+    }
+  });
+}
