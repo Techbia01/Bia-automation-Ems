@@ -840,6 +840,199 @@ class HomeWidgetsPage {
       }
     });
   }
+
+  /**
+   * Hacer clic en el widget de Facturas
+   */
+  hacerClicEnWidgetFacturas() {
+    cy.log('🖱️ Haciendo clic en el widget de Facturas...');
+    
+    return cy.get('[data-demo-target="facturas"]', { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en widget de Facturas realizado');
+        cy.wait(2000);
+      });
+  }
+
+  /**
+   * Navegar al módulo de Facturas desde el widget
+   * @returns {Cypress.Chainable<void>}
+   */
+  navegarAModuloFacturas() {
+    cy.log('📄 Navegando al módulo de Facturas...');
+    
+    return cy.contains('button', 'Ir a Facturas', { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en botón "Ir a Facturas" realizado');
+        cy.wait(2000);
+        
+        // Validar redirección
+        cy.url({ timeout: 15000 }).should('eq', 'https://web.dev.bia.app/invoice');
+        cy.log('✅ Redirección correcta a /invoice');
+        cy.wait(2000);
+        
+        // Verificar texto principal
+        cy.contains('Facturas', { timeout: 5000 }).should('be.visible');
+        cy.log('✅ Texto "Facturas" encontrado');
+        cy.wait(3000);
+      });
+  }
+
+  /**
+   * Hacer clic en el widget de Variaciones de consumo
+   */
+  hacerClicEnWidgetVariaciones() {
+    cy.log('🖱️ Haciendo clic en el widget de Variaciones de consumo...');
+    
+    return cy.get('[data-table-widget="true"][data-table-title="Variaciones de consumo"]', { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en widget de Variaciones de consumo realizado');
+        cy.wait(1000);
+      });
+  }
+
+  /**
+   * Navegar al módulo de Variaciones de consumo desde el widget
+   * @returns {Cypress.Chainable<void>}
+   */
+  navegarAModuloVariaciones() {
+    cy.log('📊 Navegando al módulo de Variaciones de consumo...');
+    
+    return cy.get("button[aria-label='Ir a Variaciones de consumo']", { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en botón "Ir a Variaciones de consumo" realizado');
+        cy.wait(1000);
+        
+        // Validar redirección
+        cy.url({ timeout: 15000 }).should('eq', 'https://web.dev.bia.app/home/consumption-variations?currentPage=1');
+        cy.log('✅ Redirección correcta a /home/consumption-variations?currentPage=1');
+        
+        cy.get('body', { timeout: 10000 }).should('be.visible');
+        cy.log('✅ La página de Variaciones de consumo cargó correctamente');
+        cy.wait(1000);
+      });
+  }
+
+  /**
+   * Interactuar con filtros de Variaciones de consumo
+   * @param {string} opcion - Opción del filtro ('semana' o 'dia')
+   */
+  cambiarFiltroVariaciones(opcion) {
+    cy.log(`🔧 Cambiando filtro a "${opcion}"...`);
+    
+    const selectorFiltro = opcion === 'semana' ? '#weekly' : '#daily';
+    const textoEsperado = opcion === 'semana' ? 'semana' : 'día';
+    
+    return cy.get('.FiltersSection_filtersContainer__pU2iQ div:nth-child(1) div:nth-child(3) div:nth-child(1) svg', { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en el SVG del filtro realizado');
+        cy.wait(800);
+        
+        cy.get(selectorFiltro, { timeout: 10000 })
+          .should('be.visible')
+          .click({ force: true })
+          .then(() => {
+            cy.log(`✅ Opción "${opcion}" seleccionada`);
+            cy.wait(2000);
+            
+            // Verificar que cambió
+            cy.contains(textoEsperado, { matchCase: false }).should('exist');
+            cy.log(`✅ El filtro muestra "${textoEsperado}"`);
+          });
+      });
+  }
+
+  /**
+   * Hacer clic en el botón de asistencia de IA para una gráfica
+   * @param {string} tituloGrafica - Título de la gráfica
+   */
+  hacerClicEnAsistenciaIA(tituloGrafica) {
+    cy.log(`🤖 Haciendo clic en el botón de asistencia de IA para "${tituloGrafica}"...`);
+    
+    return cy.get(`button[aria-label='Asistencia de IA para ${tituloGrafica}']`, { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en botón de asistencia de IA realizado');
+        cy.wait(1500);
+      });
+  }
+
+  /**
+   * Verificar que el chat de Eva está abierto y esperar respuesta
+   * @param {number} tiempoEspera - Tiempo de espera en ms (default: 3000)
+   */
+  verificarChatEvaAbierto(tiempoEspera = 3000) {
+    cy.log('💬 Verificando que el chat de Eva está abierto...');
+    
+    return cy.get('[role="dialog"], [class*="chat"], [class*="Chat"]', { timeout: 10000 })
+      .should('be.visible')
+      .then(() => {
+        cy.log('✅ Chat de Eva abierto');
+        cy.wait(tiempoEspera);
+        
+        // Verificar respuesta
+        cy.get('[role="dialog"], [class*="chat"]').then(($chat) => {
+          const textoChat = $chat.text();
+          if (textoChat.length > 50) {
+            cy.log('✅ Eva ha respondido en el chat');
+          }
+        });
+        
+        cy.wait(1000);
+      });
+  }
+
+  /**
+   * Cerrar el chat de Eva
+   */
+  cerrarChatEva() {
+    cy.log('🔒 Cerrando el chat de Eva...');
+    
+    return cy.get("button[title='Cerrar']", { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en botón cerrar realizado');
+        cy.wait(1000);
+        
+        // Verificar que volvimos al home
+        cy.url({ timeout: 10000 }).should('include', '/home');
+        cy.get('[data-graph-widget="true"][data-graph-title="Consumo energético"]', { timeout: 5000 })
+          .should('be.visible');
+        cy.log('✅ Volvimos al home correctamente');
+      });
+  }
+
+  /**
+   * Volver al home desde cualquier página
+   */
+  volverAlHome() {
+    cy.log('🏠 Volviendo al home...');
+    
+    return cy.get('#home', { timeout: 10000 })
+      .should('be.visible')
+      .click({ force: true })
+      .then(() => {
+        cy.log('✅ Clic en elemento home realizado');
+        cy.wait(1000);
+        
+        // Verificar que volvimos al home
+        cy.url({ timeout: 10000 }).should('include', '/home');
+        cy.get('[data-demo-target="home-grid"]', { timeout: 5000 }).should('be.visible');
+        cy.log('✅ Navegación al home completada');
+      });
+  }
 }
 
 export default HomeWidgetsPage;

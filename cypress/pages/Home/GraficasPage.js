@@ -162,30 +162,27 @@ class GraficasPage {
   verificarTooltipVisible(timeout = 3000) {
     cy.log('🔍 Verificando si el tooltip está visible...');
     
+    // Primero intentar buscar tooltips comunes con un selector más específico
     return cy.get('body', { timeout }).then(($body) => {
       // Buscar tooltips comunes (incluyendo elementos que aparecen al hacer hover)
+      // Priorizar selectores más específicos primero
       const selectoresTooltip = [
+        '.recharts-tooltip-wrapper', // Recharts específico
+        '[class*="recharts-tooltip"]', // Para Recharts
         '[class*="tooltip"]',
         '[class*="Tooltip"]',
-        '[class*="recharts-tooltip"]', // Para Recharts
         '[class*="tooltip-wrapper"]',
         '[role="tooltip"]',
         '[data-testid*="tooltip"]',
         '[id*="tooltip"]',
         '[class*="popover"]',
         '[class*="Popover"]',
-        '[class*="overlay"]',
-        '[class*="hover"]', // Elementos que aparecen al hover
-        '[class*="Hover"]',
-        // Buscar también elementos con posición fixed/absolute que aparecen al hover
-        '*[style*="position: fixed"]',
-        '*[style*="position:absolute"]',
-        '*[style*="z-index"]'
+        '[class*="overlay"]'
       ];
       
       let tooltipEncontrado = false;
-      let selectorEncontrado = '';
       
+      // Buscar tooltips visibles
       for (const selector of selectoresTooltip) {
         try {
           const $tooltip = $body.find(selector).filter(':visible');
@@ -199,13 +196,12 @@ class GraficasPage {
               // Verificar que tenga texto y dimensiones visibles
               if (texto.length > 0 && rect.width > 0 && rect.height > 0) {
                 // Verificar que no sea parte del menú lateral u otros elementos fijos
-                const noEsMenuLateral = !$el.closest('[id="notifications"], [id*="sidebar"], [id*="menu"]').length;
+                const noEsMenuLateral = !$el.closest('[id="notifications"], [id*="sidebar"], [id*="menu"], [id*="nav"]').length;
                 
                 if (noEsMenuLateral) {
                   cy.log(`✅ Tooltip encontrado con selector: ${selector}`);
                   cy.log(`   📋 Contenido: "${texto.substring(0, 100)}..."`);
                   tooltipEncontrado = true;
-                  selectorEncontrado = selector;
                   return false; // break
                 }
               }
@@ -219,19 +215,22 @@ class GraficasPage {
         }
       }
       
-      // Si no encontramos tooltip con selectores específicos, buscar elementos que aparecieron recientemente
+      // Si no encontramos tooltip con selectores específicos, buscar elementos con posición fixed/absolute
       if (!tooltipEncontrado) {
-        // Buscar elementos con posición fixed que puedan ser tooltips
         const $fixedElements = $body.find('*').filter((i, el) => {
-          const $el = Cypress.$(el);
-          const style = window.getComputedStyle(el);
-          const rect = el.getBoundingClientRect();
-          const texto = $el.text().trim();
-          
-          return (style.position === 'fixed' || style.position === 'absolute') &&
-                 rect.width > 50 && rect.height > 20 &&
-                 texto.length > 0 &&
-                 !$el.closest('[id="notifications"], [id*="sidebar"]').length;
+          try {
+            const $el = Cypress.$(el);
+            const style = window.getComputedStyle(el);
+            const rect = el.getBoundingClientRect();
+            const texto = $el.text().trim();
+            
+            return (style.position === 'fixed' || style.position === 'absolute') &&
+                   rect.width > 30 && rect.height > 15 &&
+                   texto.length > 0 &&
+                   !$el.closest('[id="notifications"], [id*="sidebar"], [id*="menu"], [id*="nav"]').length;
+          } catch (e) {
+            return false;
+          }
         });
         
         if ($fixedElements.length > 0) {
@@ -241,6 +240,23 @@ class GraficasPage {
             cy.log(`   📋 Contenido: "${texto.substring(0, 100)}..."`);
             tooltipEncontrado = true;
           }
+        }
+      }
+      
+      // También buscar dentro de SVG (para gráficas)
+      if (!tooltipEncontrado) {
+        const $svgTooltips = $body.find('svg g[class*="tooltip"], svg [class*="tooltip"]').filter(':visible');
+        if ($svgTooltips.length > 0) {
+          $svgTooltips.each((i, el) => {
+            const $el = Cypress.$(el);
+            const texto = $el.text().trim();
+            if (texto.length > 0) {
+              cy.log(`✅ Tooltip encontrado en SVG`);
+              cy.log(`   📋 Contenido: "${texto.substring(0, 100)}..."`);
+              tooltipEncontrado = true;
+              return false;
+            }
+          });
         }
       }
       
@@ -496,6 +512,147 @@ class GraficasPage {
     cy.wait(2000);
     
     cy.log('✅ Gráficas cargadas');
+  }
+
+  /**
+   * Hacer hover optimizado sobre barras clave (primera, media, última) de una gráfica
+   * @param {string} tituloGrafica - Título de la gráfica (opcional)
+   * @param {number} maxBarras - Número máximo de barras a procesar (default: 3)
+   * @returns {Cypress.Chainable<Array>} - Array con resultados del hover
+   */
+  hacerHoverSobreBarrasClave(tituloGrafica = null, maxBarras = 3) {
+    cy.log('🔄 Haciendo hover optimizado sobre barras clave...');
+    
+    return this.obtenerBarrasDeGraficas().then((todasLasBarras) => {
+      if (todasLasBarras.length === 0) {
+        cy.log('⚠️ No se encontraron barras para hacer hover');
+        return cy.wrap([]);
+      }
+      
+      // Seleccionar barras clave (primera, media, última)
+      const totalBarras = Math.min(todasLasBarras.length, maxBarras);
+      const barrasClave = [];
+      
+      if (totalBarras > 0) {
+        barrasClave.push({ barra: todasLasBarras[0], indice: 1, tipo: 'primera' });
+        
+        if (totalBarras > 2) {
+          const indiceMedio = Math.floor(totalBarras / 2);
+          barrasClave.push({ barra: todasLasBarras[indiceMedio], indice: indiceMedio + 1, tipo: 'media' });
+        }
+        
+        if (totalBarras > 1) {
+          barrasClave.push({ barra: todasLasBarras[totalBarras - 1], indice: totalBarras, tipo: 'última' });
+        }
+      }
+      
+      cy.log(`📊 Haciendo hover sobre ${barrasClave.length} barra(s) clave...`);
+      
+      const resultadosHover = [];
+      
+      // Hacer hover sobre barras clave hasta encontrar el primer tooltip visible
+      const graficasPage = this; // Guardar referencia para usar en callbacks
+      let tooltipEncontrado = false; // Flag para detener cuando se encuentre un tooltip
+      
+      return cy.wrap(null).then(() => {
+        return barrasClave.reduce((chain, { barra, indice, tipo }) => {
+          return chain.then(() => {
+            // Si ya encontramos un tooltip, no continuar con más barras
+            if (tooltipEncontrado) {
+              return cy.wrap(null);
+            }
+            
+            cy.log(`   📊 Hover sobre barra ${indice} (${tipo})...`);
+            
+            // Hacer hover suave y natural con múltiples eventos para asegurar que funcione
+            return cy.wrap(barra.elemento)
+              .scrollIntoView({ duration: 300 })
+              .wait(400)
+              .trigger('mouseover', { force: true, bubbles: true })
+              .wait(200)
+              .trigger('mouseenter', { force: true, bubbles: true })
+              .wait(200)
+              .trigger('mousemove', { force: true, bubbles: true })
+              .wait(1500) // Esperar tiempo suficiente para que aparezca el tooltip
+              .then(() => {
+                // Esperar un poco más para asegurar que el tooltip esté completamente renderizado
+                cy.wait(500);
+                
+                // Verificar tooltip usando la referencia guardada
+                return graficasPage.verificarTooltipVisible(3000).then((tieneTooltip) => {
+                  if (tieneTooltip) {
+                    cy.log(`      ✅ Tooltip visible en barra ${indice} (${tipo}) - Continuando al siguiente paso`);
+                    resultadosHover.push({ tooltipVisible: true, indice, tipo });
+                    tooltipEncontrado = true; // Marcar que encontramos un tooltip
+                    cy.wait(1000); // Espera mínima para ver el tooltip antes de continuar
+                    
+                    // Limpiar hover rápidamente
+                    cy.wrap(barra.elemento)
+                      .trigger('mouseleave', { force: true })
+                      .trigger('mouseout', { force: true });
+                    cy.wait(300);
+                  } else {
+                    cy.log(`      ⚠️ Tooltip no visible en barra ${indice}`);
+                    resultadosHover.push({ tooltipVisible: false, indice, tipo });
+                    
+                    // Limpiar hover de forma suave
+                    cy.wrap(barra.elemento)
+                      .trigger('mouseleave', { force: true })
+                      .trigger('mouseout', { force: true });
+                    cy.wait(500);
+                  }
+                });
+              });
+          });
+        }, cy.wrap(null));
+      }).then(() => {
+        const tooltipsVisibles = resultadosHover.filter(r => r.tooltipVisible).length;
+        if (tooltipEncontrado) {
+          cy.log(`✅ Tooltip encontrado - ${tooltipsVisibles} tooltip(s) visible(s) de ${resultadosHover.length} barra(s) procesada(s)`);
+        } else {
+          cy.log(`⚠️ Hover completado sin tooltips visibles - ${resultadosHover.length} barra(s) procesada(s)`);
+        }
+        return cy.wrap({ resultados: resultadosHover, tooltipEncontrado });
+      });
+    });
+  }
+
+  /**
+   * Hacer clic en una barra de gráfica y cerrar modal si se abre
+   * @param {number} indiceBarra - Índice de la barra (default: 0 para la primera)
+   */
+  hacerClicEnBarraYCerrarModal(indiceBarra = 0) {
+    cy.log(`🖱️ Haciendo clic en la barra ${indiceBarra + 1}...`);
+    
+    return this.obtenerBarrasDeGraficas().then((todasLasBarras) => {
+      if (todasLasBarras.length === 0) {
+        cy.log('⚠️ No hay barras disponibles');
+        return cy.wrap(null);
+      }
+      
+      const barra = todasLasBarras[indiceBarra];
+      
+      return cy.wrap(barra.elemento)
+        .scrollIntoView()
+        .click({ force: true })
+        .then(() => {
+          cy.wait(1000);
+          
+          // Cerrar modal si se abrió
+          cy.get('body').then(($body) => {
+            const $modal = $body.find('[role="dialog"], [class*="modal"]').filter(':visible').first();
+            if ($modal.length > 0) {
+              const $cerrar = $body.find("button[title='Cerrar']").first();
+              if ($cerrar.length > 0) {
+                cy.wrap($cerrar).click({ force: true });
+              } else {
+                cy.get('body').type('{esc}');
+              }
+              cy.wait(500);
+            }
+          });
+        });
+    });
   }
 }
 
