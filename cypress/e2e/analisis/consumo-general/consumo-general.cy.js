@@ -76,25 +76,15 @@ describe('Análisis - Consumo General', () => {
       expect(interception.response.statusCode).to.eq(200);
       authToken = interception.response.body.access_token;
       expect(authToken).to.exist;
-      cy.log('✅ Token de autenticación capturado');
-      
       return cy.wrap(authToken);
     }).then((token) => {
       cy.url({ timeout: 20000 }).should('include', '/home');
       
       return cy.wait(`@${INTERCEPTS.CONTRACTS}`, { timeout: 30000 }).then((interception) => {
-        cy.log(`📊 Status de respuesta de contratos: ${interception.response.statusCode}`);
-        
         contractIds = extraerContractIds(interception.response.body);
-        
         if (contractIds.length === 0) {
-          cy.log('⚠️ No se pudieron extraer contract IDs');
-          cy.log('   El API puede requerir contract IDs para funcionar correctamente');
-        } else {
-          cy.log(`✅ ${contractIds.length} contratos obtenidos`);
-          cy.log(`   IDs: ${contractIds.join(', ')}`);
+          console.warn('No se pudieron extraer contract IDs');
         }
-        
         return cy.wrap({ token, contractIds });
       });
     }).then(({ token, contractIds: ids }) => {
@@ -705,56 +695,16 @@ describe('Análisis - Consumo General', () => {
         return cy.wrap(null);
       });
     }).then(() => {
-      // ============================================================
-      // PASO 8: VALIDAR BOTÓN DE SEDES Y HACER SCROLL
-      // ============================================================
-      cy.log('');
-      cy.log('═══════════════════════════════════════════════════════');
-      cy.log('🏢 PASO 8: VALIDAR BOTÓN DE SEDES Y HACER SCROLL');
-      cy.log('═══════════════════════════════════════════════════════');
-      
-      // Hacer clic en botón de sedes y verificar que muestre información
+      // PASO 8: Botón de sedes y scroll — PASO 9: Flujo descarga (sin cy.log en callbacks que hacen return para evitar error Cypress)
       return consumoGeneralPage.hacerClicEnBotonSedesYVerificarInfo().then(() => {
-        cy.log('✅ Botón de sedes y scroll validado');
-        cy.log('');
-        
-        // ============================================================
-        // PASO 9: EJECUTAR FLUJO DE DESCARGA
-        // ============================================================
-        cy.log('═══════════════════════════════════════════════════════');
-        cy.log('📥 PASO 9: EJECUTAR FLUJO DE DESCARGA');
-        cy.log('═══════════════════════════════════════════════════════');
-        
-        // Interceptar el API de descarga antes de ejecutar el flujo
+        // PASO 9: Interceptar y ejecutar flujo de descarga (sin cy.log dentro del .then para evitar error de Cypress)
         consumoGeneralPage.interceptarApiMatrixFile();
-        cy.wait(500); // Esperar a que el intercept esté configurado
-        
-        return consumoGeneralPage.ejecutarFlujoDescarga().then((datosServicio) => {
+        return cy.wait(500).then(() => consumoGeneralPage.ejecutarFlujoDescarga()).then((datosServicio) => {
           if (datosServicio) {
-            cy.log('');
-            cy.log('═══════════════════════════════════════════════════════');
-            cy.log('📋 RESUMEN DE VALIDACIÓN DEL SERVICIO');
-            cy.log('═══════════════════════════════════════════════════════');
-            cy.log(`   Email enviado: "${datosServicio.request.email}"`);
-            cy.log(`   Agregación: "${datosServicio.request.aggregation}"`);
-            cy.log(`   Período: ${datosServicio.request.start_date} - ${datosServicio.request.end_date}`);
-            cy.log(`   Contratos: ${datosServicio.request.contracts?.length || 0}`);
-            cy.log(`   Status del servicio: ${datosServicio.statusCode}`);
-            cy.log('═══════════════════════════════════════════════════════');
+            console.log('📋 RESUMEN: Email:', datosServicio.request?.email, '| Agregación:', datosServicio.request?.aggregation, '| Status:', datosServicio.statusCode);
           }
-          
-          cy.log('');
-          cy.log('═══════════════════════════════════════════════════════');
-          cy.log('✅ AUTOMATIZACIÓN COMPLETA FINALIZADA');
-          cy.log('═══════════════════════════════════════════════════════');
-          cy.log('   ✅ Widgets validados: API vs UI (mensual)');
-          cy.log('   ✅ Gráficas validadas: API vs UI');
-          cy.log('   ✅ Filtro semanal validado');
-          cy.log('   ✅ Filtro diario validado');
-          cy.log('   ✅ Dropdown de filtros validado');
-          cy.log('   ✅ Botón de sedes y scroll validado');
-          cy.log('   ✅ Flujo de descarga completado y validado contra servicio');
-          cy.log('═══════════════════════════════════════════════════════');
+        }).then(() => {
+          cy.log('✅ Automatización pasó satisfactoriamente');
         });
       });
     });
