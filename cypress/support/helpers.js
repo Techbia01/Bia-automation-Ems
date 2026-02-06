@@ -682,3 +682,686 @@ export function llamarApiAnalyticsWidgets(authToken, contractIds, period = 'mont
     }
   });
 }
+
+/**
+ * Helper para parsear HTML de energía reactiva y extraer datos del frontend
+ * @param {string} htmlString - String HTML del frontend
+ * @returns {Object} - Objeto con los datos extraídos de energía reactiva
+ */
+export function parsearHtmlEnergiaReactiva(htmlString) {
+  cy.log('🔍 Parseando HTML de energía reactiva...');
+  
+  const datos = {
+    reactivaInductiva: {
+      header: null,
+      valor: null,
+      valor_str: null,
+      porcentaje: null,
+      encontrado: false
+    },
+    reactivaCapacitiva: {
+      header: null,
+      valor: null,
+      valor_str: null,
+      porcentaje: null,
+      encontrado: false
+    },
+    graficas: []
+  };
+
+  // Crear un elemento temporal para parsear el HTML
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(htmlString, 'text/html');
+  
+  cy.log('');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('📋 BUSCANDO COPYS EN EL HTML:');
+  cy.log('═══════════════════════════════════════════════════════');
+  
+  // Buscar "Total Energía Reactiva Inductiva" o variaciones
+  const textosInductiva = [
+    'Total Energía Reactiva Inductiva',
+    'Total Energía Reactiva Inductiva',
+    'Reactiva Inductiva',
+    'reactiva inductiva',
+    'Reactiva Inductiva Penalizada'
+  ];
+  
+  let elementoInductiva = null;
+  for (const textoBuscar of textosInductiva) {
+    const elementos = Array.from(doc.querySelectorAll('*')).filter(el => {
+      const texto = el.textContent || '';
+      return texto.includes(textoBuscar);
+    });
+    
+    if (elementos.length > 0) {
+      elementoInductiva = elementos[0];
+      cy.log(`   ✅ Encontrado texto: "${textoBuscar}"`);
+      break;
+    }
+  }
+  
+  if (elementoInductiva) {
+    datos.reactivaInductiva.encontrado = true;
+    datos.reactivaInductiva.header = 'Total Energía Reactiva Inductiva';
+    
+    // Buscar el contenedor padre que tenga los valores
+    const $container = Cypress.$(elementoInductiva).closest('[class*="widget"], [class*="card"], [class*="kpi"], [data-demo-target="kpi-card"]');
+    const textoCompleto = $container.length > 0 ? $container.text() : elementoInductiva.textContent || '';
+    
+    // Buscar valores numéricos (ej: "68K kVArh", "68K", "68000")
+    const matchValor = textoCompleto.match(/(\d+(?:\.\d+)?[KMkm]?)\s*kVArh/i) || 
+                       textoCompleto.match(/(\d+(?:\.\d+)?[KMkm]?)\s*(?:kVArh|kvarh)/i);
+    
+    // Buscar porcentaje (ej: "558%", "+558%", "-10%")
+    const matchPorcentaje = textoCompleto.match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
+    
+    if (matchValor) {
+      datos.reactivaInductiva.valor = matchValor[1];
+      datos.reactivaInductiva.valor_str = matchValor[0].trim();
+      cy.log(`   ✅ Valor encontrado: "${datos.reactivaInductiva.valor_str}"`);
+    }
+    
+    if (matchPorcentaje) {
+      datos.reactivaInductiva.porcentaje = matchPorcentaje[1];
+      cy.log(`   ✅ Porcentaje encontrado: "${matchPorcentaje[0].trim()}"`);
+    }
+    
+    cy.log(`   📄 Texto completo del elemento: "${textoCompleto.substring(0, 200)}..."`);
+  } else {
+    cy.log('   ⚠️ No se encontró "Total Energía Reactiva Inductiva" en el HTML');
+  }
+  
+  // Buscar "Total Energía Reactiva Capacitiva" o variaciones
+  const textosCapacitiva = [
+    'Total Energía Reactiva Capacitiva',
+    'Total Energía Reactiva Capacitiva',
+    'Reactiva Capacitiva',
+    'reactiva capacitiva'
+  ];
+  
+  let elementoCapacitiva = null;
+  for (const textoBuscar of textosCapacitiva) {
+    const elementos = Array.from(doc.querySelectorAll('*')).filter(el => {
+      const texto = el.textContent || '';
+      return texto.includes(textoBuscar);
+    });
+    
+    if (elementos.length > 0) {
+      elementoCapacitiva = elementos[0];
+      cy.log(`   ✅ Encontrado texto: "${textoBuscar}"`);
+      break;
+    }
+  }
+  
+  if (elementoCapacitiva) {
+    datos.reactivaCapacitiva.encontrado = true;
+    datos.reactivaCapacitiva.header = 'Total Energía Reactiva Capacitiva';
+    
+    // Buscar el contenedor padre que tenga los valores
+    const $container = Cypress.$(elementoCapacitiva).closest('[class*="widget"], [class*="card"], [class*="kpi"], [data-demo-target="kpi-card"]');
+    const textoCompleto = $container.length > 0 ? $container.text() : elementoCapacitiva.textContent || '';
+    
+    // Buscar valores numéricos
+    const matchValor = textoCompleto.match(/(\d+(?:\.\d+)?[KMkm]?)\s*kVArh/i) || 
+                       textoCompleto.match(/(\d+(?:\.\d+)?[KMkm]?)\s*(?:kVArh|kvarh)/i);
+    
+    // Buscar porcentaje
+    const matchPorcentaje = textoCompleto.match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
+    
+    if (matchValor) {
+      datos.reactivaCapacitiva.valor = matchValor[1];
+      datos.reactivaCapacitiva.valor_str = matchValor[0].trim();
+      cy.log(`   ✅ Valor encontrado: "${datos.reactivaCapacitiva.valor_str}"`);
+    }
+    
+    if (matchPorcentaje) {
+      datos.reactivaCapacitiva.porcentaje = matchPorcentaje[1];
+      cy.log(`   ✅ Porcentaje encontrado: "${matchPorcentaje[0].trim()}"`);
+    }
+    
+    cy.log(`   📄 Texto completo del elemento: "${textoCompleto.substring(0, 200)}..."`);
+  } else {
+    cy.log('   ⚠️ No se encontró "Total Energía Reactiva Capacitiva" en el HTML');
+  }
+  
+  // Buscar gráficas relacionadas
+  const textosGraficas = [
+    'Excesos de energía reactiva inductiva',
+    'Exceso de reactiva inductiva por sedes',
+    'Excesos de reactiva inductiva'
+  ];
+  
+  textosGraficas.forEach(textoGrafica => {
+    const elementos = Array.from(doc.querySelectorAll('*')).filter(el => {
+      const texto = el.textContent || '';
+      return texto.includes(textoGrafica);
+    });
+    
+    if (elementos.length > 0) {
+      datos.graficas.push({ titulo: textoGrafica, encontrada: true });
+      cy.log(`   ✅ Gráfica encontrada: "${textoGrafica}"`);
+    }
+  });
+  
+  cy.log('');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('✅ RESUMEN DEL HTML:');
+  cy.log(`   Reactiva Inductiva: ${datos.reactivaInductiva.encontrado ? '✅' : '❌'}`);
+  if (datos.reactivaInductiva.encontrado) {
+    cy.log(`      Header (copy): "${datos.reactivaInductiva.header}"`);
+    cy.log(`      Valor (copy): "${datos.reactivaInductiva.valor_str || datos.reactivaInductiva.valor || 'N/A'}"`);
+    cy.log(`      Porcentaje (copy): "${datos.reactivaInductiva.porcentaje || 'N/A'}"`);
+  }
+  cy.log(`   Reactiva Capacitiva: ${datos.reactivaCapacitiva.encontrado ? '✅' : '❌'}`);
+  if (datos.reactivaCapacitiva.encontrado) {
+    cy.log(`      Header (copy): "${datos.reactivaCapacitiva.header}"`);
+    cy.log(`      Valor (copy): "${datos.reactivaCapacitiva.valor_str || datos.reactivaCapacitiva.valor || 'N/A'}"`);
+    cy.log(`      Porcentaje (copy): "${datos.reactivaCapacitiva.porcentaje || 'N/A'}"`);
+  }
+  cy.log(`   Gráficas encontradas: ${datos.graficas.length}`);
+  cy.log('═══════════════════════════════════════════════════════');
+  
+  return datos;
+}
+
+/**
+ * Helper para llamar al API de reactive-analitics/widgets (Energía Reactiva)
+ * @param {string} authToken - Token de autenticación
+ * @param {Array<number>} contractIds - IDs de contratos
+ * @param {string} period - Período (monthly, daily, etc.)
+ * @param {string} date - Fecha en formato YYYY-MM-DD
+ * @param {string} timezone - Zona horaria (ej: America/Bogota)
+ * @param {string} viewAs - ID de vista (x-view-as header)
+ * @returns {Promise} - Promise con la respuesta del servicio
+ */
+export function llamarApiReactiveAnalyticsWidgets(authToken, contractIds, period = 'monthly', date = null, timezone = 'America/Bogota', viewAs = null) {
+  // Si no se proporciona fecha, usar la fecha actual
+  if (!date) {
+    const now = new Date();
+    date = now.toISOString().split('T')[0];
+  }
+
+  const url = 'https://api.dev.bia.app/ms-bia-consumptions/v1/reactive-analitics/widgets';
+  
+  const headers = {
+    'x-platform': 'web',
+    'Authorization': authToken,
+    'sec-ch-ua-platform': '"Windows"',
+    'Referer': 'https://web.dev.bia.app/',
+    'sec-ch-ua': '"Not(A:Brand";v="8", "Chromium";v="144", "Google Chrome";v="144"',
+    'x-timezone': timezone,
+    'sec-ch-ua-mobile': '?0',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36',
+    'Content-Type': 'application/json'
+  };
+
+  // Agregar x-view-as si está presente
+  if (viewAs) {
+    headers['x-view-as'] = viewAs;
+  }
+
+  const body = {
+    contract_ids: contractIds,
+    period: period,
+    date: date
+  };
+
+  cy.log(`📡 Llamando al API de reactive-analitics/widgets con ${contractIds.length} contratos`);
+  cy.log(`📅 Período: ${period}, Fecha: ${date}`);
+
+  // Validar que tenemos los datos necesarios
+  if (!authToken || authToken === undefined || authToken === null) {
+    cy.log('❌ ERROR: No hay token de autenticación');
+    throw new Error('Token de autenticación requerido');
+  }
+  
+  if (!contractIds || contractIds.length === 0) {
+    cy.log('⚠️ ADVERTENCIA: No hay contract IDs. El API puede requerirlos.');
+  }
+
+  return cy.request({
+    method: 'POST',
+    url: url,
+    headers: headers,
+    body: body,
+    failOnStatusCode: false
+  }).then((response) => {
+    if (response.status === 200) {
+      cy.log('✅ Respuesta del API de reactive-analitics/widgets obtenida exitosamente');
+      cy.log(`📊 Widgets recibidos: ${Array.isArray(response.body) ? response.body.length : 'N/A'}`);
+      return cy.wrap(response.body);
+    } else {
+      cy.log(`⚠️ Error en la respuesta del API: ${response.status}`);
+      cy.log(`📋 Detalles del error:`);
+      cy.log(`   - URL: ${url}`);
+      cy.log(`   - Body enviado: ${JSON.stringify(body)}`);
+      cy.log(`   - Response: ${JSON.stringify(response.body).substring(0, 200)}`);
+      
+      if (response.status === 400) {
+        cy.log('');
+        cy.log('🔍 Posibles causas del error 400:');
+        cy.log('   1. Contract IDs vacíos o inválidos');
+        cy.log('   2. Fecha en formato incorrecto');
+        cy.log('   3. Período no válido');
+        cy.log('   4. Token de autenticación inválido');
+        cy.log('');
+        cy.log('💡 Intentando continuar con validaciones del UI solamente...');
+        return cy.wrap([]);
+      }
+      
+      throw new Error(`API retornó status ${response.status}`);
+    }
+  });
+}
+
+/**
+ * Helper para ejecutar comando curl y obtener datos del servicio de energía reactiva
+ * Esta función parsea el comando curl y llama a llamarApiReactiveAnalyticsWidgets
+ * @param {string} curlCommand - Comando curl completo (opcional, puede ser null si se usan parámetros directos)
+ * @param {string} authToken - Token de autenticación (si no se proporciona curlCommand)
+ * @param {Array<number>} contractIds - IDs de contratos (si no se proporciona curlCommand)
+ * @param {string} period - Período (si no se proporciona curlCommand)
+ * @param {string} date - Fecha (si no se proporciona curlCommand)
+ * @param {string} timezone - Zona horaria (si no se proporciona curlCommand)
+ * @param {string} viewAs - ID de vista (si no se proporciona curlCommand)
+ * @returns {Promise} - Promise con la respuesta del servicio
+ */
+export function ejecutarCurlEnergiaReactiva(curlCommand = null, authToken = null, contractIds = null, period = 'monthly', date = null, timezone = 'America/Bogota', viewAs = null) {
+  cy.log('📡 Ejecutando llamada al servicio de energía reactiva...');
+  
+  // Si se proporciona curlCommand, intentar parsearlo para extraer parámetros
+  // PERO siempre usar el authToken del login (más confiable y actualizado)
+  if (curlCommand) {
+    cy.log(`   Parseando comando curl para extraer parámetros...`);
+    
+    // Extraer x-timezone del curl
+    const timezoneMatch = curlCommand.match(/-H\s+['"]x-timezone:\s*([^'"]+)['"]/);
+    const extractedTimezone = timezoneMatch ? timezoneMatch[1] : timezone;
+    
+    // Extraer x-view-as del curl
+    const viewAsMatch = curlCommand.match(/-H\s+['"]x-view-as:\s*([^'"]+)['"]/);
+    const extractedViewAs = viewAsMatch ? viewAsMatch[1] : viewAs;
+    
+    // Extraer body JSON del curl
+    const bodyMatch = curlCommand.match(/--data-raw\s+['"]([^'"]+)['"]/);
+    let extractedBody = null;
+    if (bodyMatch) {
+      try {
+        extractedBody = JSON.parse(bodyMatch[1]);
+      } catch (e) {
+        cy.log(`⚠️ Error parseando body JSON: ${e.message}`);
+      }
+    }
+    
+    // IMPORTANTE: Usar el authToken del login (parámetro), NO el del curl
+    // El token del login es el que está activo y válido
+    const tokenAUsar = authToken || null;
+    
+    if (extractedBody && tokenAUsar) {
+      cy.log(`   ✅ Parámetros extraídos del curl`);
+      cy.log(`   📋 Contract IDs: ${extractedBody.contract_ids?.length || 0} contratos`);
+      cy.log(`   📅 Período: ${extractedBody.period}, Fecha: ${extractedBody.date}`);
+      cy.log(`   🔑 Token: Usando token del login (${tokenAUsar.substring(0, 20)}...)`);
+      
+      return llamarApiReactiveAnalyticsWidgets(
+        tokenAUsar, // Usar token del login, no el del curl
+        extractedBody.contract_ids,
+        extractedBody.period,
+        extractedBody.date,
+        extractedTimezone,
+        extractedViewAs
+      );
+    } else {
+      cy.log(`⚠️ No se pudieron extraer todos los parámetros del curl`);
+      cy.log(`   Token del login: ${tokenAUsar ? '✅' : '❌'}`);
+      cy.log(`   Body: ${extractedBody ? '✅' : '❌'}`);
+    }
+  }
+  
+  // Si no se proporcionó curlCommand o no se pudo parsear, usar parámetros directos
+  if (authToken && contractIds) {
+    cy.log(`   Usando parámetros directos con token del login`);
+    cy.log(`   🔑 Token: ${authToken.substring(0, 20)}...`);
+    return llamarApiReactiveAnalyticsWidgets(authToken, contractIds, period, date, timezone, viewAs);
+  }
+  
+  cy.log('❌ ERROR: No se proporcionaron parámetros suficientes');
+  cy.log('   Opciones:');
+  cy.log('   1. Proporcionar curlCommand completo');
+  cy.log('   2. Proporcionar authToken, contractIds y otros parámetros opcionales');
+  
+  return cy.wrap(null);
+}
+
+/**
+ * Helper para procesar la respuesta del API de reactive-analitics/widgets
+ * y convertirla al formato esperado para comparación
+ * @param {Array} apiResponse - Respuesta del API (array de widgets)
+ * @returns {Object} - Datos procesados en formato estructurado
+ */
+export function procesarRespuestaApiEnergiaReactiva(apiResponse) {
+  cy.log('🔍 Procesando respuesta del API de energía reactiva...');
+  
+  const datos = {
+    reactivaInductiva: {
+      valor: null,
+      valor_str: null,
+      value: null,
+      porcentaje: null,
+      header: null,
+      subheader: null,
+      encontrado: false
+    },
+    reactivaCapacitiva: {
+      valor: null,
+      valor_str: null,
+      value: null,
+      porcentaje: null,
+      header: null,
+      subheader: null,
+      encontrado: false
+    },
+    widgets: []
+  };
+
+  if (!apiResponse || !Array.isArray(apiResponse)) {
+    cy.log('⚠️ La respuesta del API no es un array válido');
+    return datos;
+  }
+
+  cy.log(`📊 Procesando ${apiResponse.length} widget(s) del API...`);
+  cy.log('');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('📋 DATOS DEL SERVICIO (COPYS):');
+  cy.log('═══════════════════════════════════════════════════════');
+
+  apiResponse.forEach((widget, index) => {
+    const header = widget.header || widget.title || '';
+    const headerLower = header.toLowerCase();
+    const kind = (widget.kind || '').toLowerCase();
+    
+    cy.log(`   Widget ${index + 1}:`);
+    cy.log(`      Header (copy): "${header}"`);
+    cy.log(`      Value_str (copy): "${widget.value_str || 'N/A'}"`);
+    cy.log(`      Subheader (copy): "${widget.subheader || 'N/A'}"`);
+    cy.log(`      Value (numérico): ${widget.value !== undefined ? widget.value : 'N/A'}`);
+    cy.log(`      Kind: "${kind}"`);
+    cy.log('');
+    
+    // Buscar reactiva inductiva por header/copy
+    if (headerLower.includes('reactiva') && (headerLower.includes('inductiva') || headerLower.includes('inductive') || headerLower.includes('penalizada'))) {
+      datos.reactivaInductiva.encontrado = true;
+      datos.reactivaInductiva.header = header;
+      datos.reactivaInductiva.valor_str = widget.value_str || null;
+      datos.reactivaInductiva.value = widget.value !== undefined ? widget.value : null;
+      datos.reactivaInductiva.subheader = widget.subheader || null;
+      
+      // Extraer porcentaje del subheader si existe
+      if (widget.subheader) {
+        const matchPorcentaje = String(widget.subheader).match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
+        if (matchPorcentaje) {
+          datos.reactivaInductiva.porcentaje = matchPorcentaje[1];
+        } else {
+          datos.reactivaInductiva.porcentaje = widget.subheader;
+        }
+      }
+      
+      // Si no hay value_str pero hay value, convertir
+      if (!datos.reactivaInductiva.valor_str && datos.reactivaInductiva.value !== null) {
+        datos.reactivaInductiva.valor_str = convertirNumeroAFormato(datos.reactivaInductiva.value) + ' kVArh';
+      }
+      
+      cy.log(`   ✅ Reactiva Inductiva encontrada:`);
+      cy.log(`      Copy header: "${datos.reactivaInductiva.header}"`);
+      cy.log(`      Copy valor: "${datos.reactivaInductiva.valor_str || 'N/A'}"`);
+      cy.log(`      Copy porcentaje: "${datos.reactivaInductiva.porcentaje || 'N/A'}"`);
+    }
+    
+    // Buscar reactiva capacitiva por header/copy
+    if (headerLower.includes('reactiva') && (headerLower.includes('capacitiva') || headerLower.includes('capacitive'))) {
+      datos.reactivaCapacitiva.encontrado = true;
+      datos.reactivaCapacitiva.header = header;
+      datos.reactivaCapacitiva.valor_str = widget.value_str || null;
+      datos.reactivaCapacitiva.value = widget.value !== undefined ? widget.value : null;
+      datos.reactivaCapacitiva.subheader = widget.subheader || null;
+      
+      // Extraer porcentaje del subheader si existe
+      if (widget.subheader) {
+        const matchPorcentaje = String(widget.subheader).match(/([\+\-]?\d+(?:\.\d+)?)\s*%/);
+        if (matchPorcentaje) {
+          datos.reactivaCapacitiva.porcentaje = matchPorcentaje[1];
+        } else {
+          datos.reactivaCapacitiva.porcentaje = widget.subheader;
+        }
+      }
+      
+      // Si no hay value_str pero hay value, convertir
+      if (!datos.reactivaCapacitiva.valor_str && datos.reactivaCapacitiva.value !== null) {
+        datos.reactivaCapacitiva.valor_str = convertirNumeroAFormato(datos.reactivaCapacitiva.value) + ' kVArh';
+      }
+      
+      cy.log(`   ✅ Reactiva Capacitiva encontrada:`);
+      cy.log(`      Copy header: "${datos.reactivaCapacitiva.header}"`);
+      cy.log(`      Copy valor: "${datos.reactivaCapacitiva.valor_str || 'N/A'}"`);
+      cy.log(`      Copy porcentaje: "${datos.reactivaCapacitiva.porcentaje || 'N/A'}"`);
+    }
+    
+    // Guardar todos los widgets para referencia
+    datos.widgets.push({
+      header: header,
+      kind: widget.kind,
+      value_str: widget.value_str,
+      value: widget.value,
+      subheader: widget.subheader
+    });
+  });
+
+  cy.log('');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('✅ RESUMEN DEL SERVICIO:');
+  cy.log(`   Reactiva Inductiva: ${datos.reactivaInductiva.encontrado ? '✅' : '❌'}`);
+  if (datos.reactivaInductiva.encontrado) {
+    cy.log(`      Header: "${datos.reactivaInductiva.header}"`);
+    cy.log(`      Valor: "${datos.reactivaInductiva.valor_str || 'N/A'}"`);
+    cy.log(`      Porcentaje: "${datos.reactivaInductiva.porcentaje || 'N/A'}"`);
+  }
+  cy.log(`   Reactiva Capacitiva: ${datos.reactivaCapacitiva.encontrado ? '✅' : '❌'}`);
+  if (datos.reactivaCapacitiva.encontrado) {
+    cy.log(`      Header: "${datos.reactivaCapacitiva.header}"`);
+    cy.log(`      Valor: "${datos.reactivaCapacitiva.valor_str || 'N/A'}"`);
+    cy.log(`      Porcentaje: "${datos.reactivaCapacitiva.porcentaje || 'N/A'}"`);
+  }
+  cy.log('═══════════════════════════════════════════════════════');
+
+  return datos;
+}
+
+/**
+ * Helper para comparar datos de energía reactiva del frontend vs servicio
+ * @param {Object} datosFrontend - Datos extraídos del HTML del frontend
+ * @param {Object} datosServicio - Datos obtenidos del servicio (curl) - debe ser procesado con procesarRespuestaApiEnergiaReactiva
+ * @returns {Object} - Resultado de la comparación
+ */
+export function compararEnergiaReactiva(datosFrontend, datosServicio) {
+  cy.log('');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('🔍 COMPARANDO COPYS: FRONTEND vs SERVICIO');
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('');
+  
+  const comparacion = {
+    reactivaInductiva: {
+      header: false,
+      valor: false,
+      porcentaje: false,
+      encontrado: datosFrontend.reactivaInductiva.encontrado && datosServicio?.reactivaInductiva?.encontrado
+    },
+    reactivaCapacitiva: {
+      header: false,
+      valor: false,
+      porcentaje: false,
+      encontrado: datosFrontend.reactivaCapacitiva.encontrado && datosServicio?.reactivaCapacitiva?.encontrado
+    },
+    graficas: {
+      coincidencias: [],
+      diferencias: []
+    }
+  };
+  
+  // Comparar reactiva inductiva
+  if (datosFrontend.reactivaInductiva.encontrado && datosServicio?.reactivaInductiva?.encontrado) {
+    cy.log('📊 Validando: Reactiva Inductiva');
+    
+    // Comparar header (copy)
+    const headerFrontend = (datosFrontend.reactivaInductiva.header || 'Total Energía Reactiva Inductiva').toLowerCase();
+    const headerServicio = (datosServicio.reactivaInductiva.header || '').toLowerCase();
+    comparacion.reactivaInductiva.header = headerFrontend.includes('reactiva') && 
+                                           (headerServicio.includes('reactiva') && 
+                                            (headerServicio.includes('inductiva') || headerServicio.includes('penalizada')));
+    
+    // Comparar valor (copy)
+    comparacion.reactivaInductiva.valor = compararValoresAproximados(
+      datosFrontend.reactivaInductiva.valor_str || datosFrontend.reactivaInductiva.valor,
+      datosServicio.reactivaInductiva.valor_str,
+      datosServicio.reactivaInductiva.value
+    );
+    
+    // Comparar porcentaje (copy)
+    comparacion.reactivaInductiva.porcentaje = compararValores(
+      datosFrontend.reactivaInductiva.porcentaje,
+      datosServicio.reactivaInductiva.porcentaje || datosServicio.reactivaInductiva.subheader
+    );
+    
+    const todasCoinciden = comparacion.reactivaInductiva.header && 
+                          comparacion.reactivaInductiva.valor && 
+                          comparacion.reactivaInductiva.porcentaje;
+    
+    cy.log(`   ┌─ Frontend (HTML):`);
+    cy.log(`   │  Header: "${datosFrontend.reactivaInductiva.header || 'Total Energía Reactiva Inductiva'}"`);
+    cy.log(`   │  Valor: "${datosFrontend.reactivaInductiva.valor_str || datosFrontend.reactivaInductiva.valor || 'N/A'}"`);
+    cy.log(`   │  Porcentaje: "${datosFrontend.reactivaInductiva.porcentaje || 'N/A'}"`);
+    cy.log(`   ├─ Servicio (API):`);
+    cy.log(`   │  Header: "${datosServicio.reactivaInductiva.header || 'N/A'}"`);
+    cy.log(`   │  Valor: "${datosServicio.reactivaInductiva.valor_str || datosServicio.reactivaInductiva.value || 'N/A'}"`);
+    cy.log(`   │  Porcentaje: "${datosServicio.reactivaInductiva.porcentaje || datosServicio.reactivaInductiva.subheader || 'N/A'}"`);
+    cy.log(`   └─ Validación:`);
+    cy.log(`      🎯 RESULTADO: ${todasCoinciden ? '✅ Todas las validaciones correctas' : '❌ ERROR - Se encontraron diferencias'}`);
+    cy.log(`         Header: ${comparacion.reactivaInductiva.header ? '✅' : '❌'}`);
+    cy.log(`         Valor: ${comparacion.reactivaInductiva.valor ? '✅' : '❌'}`);
+    cy.log(`         Porcentaje: ${comparacion.reactivaInductiva.porcentaje ? '✅' : '❌'}`);
+    
+    if (!todasCoinciden) {
+      cy.log(`         ┌─ Detalles de diferencias:`);
+      if (!comparacion.reactivaInductiva.valor) {
+        cy.log(`         │  Valor:`);
+        cy.log(`         │    Frontend: "${datosFrontend.reactivaInductiva.valor_str || datosFrontend.reactivaInductiva.valor || 'N/A'}"`);
+        cy.log(`         │    Servicio: "${datosServicio.reactivaInductiva.valor_str || datosServicio.reactivaInductiva.value || 'N/A'}"`);
+      }
+      if (!comparacion.reactivaInductiva.porcentaje) {
+        cy.log(`         │  Porcentaje:`);
+        cy.log(`         │    Frontend: "${datosFrontend.reactivaInductiva.porcentaje || 'N/A'}"`);
+        cy.log(`         │    Servicio: "${datosServicio.reactivaInductiva.porcentaje || datosServicio.reactivaInductiva.subheader || 'N/A'}"`);
+      }
+      cy.log(`         └─`);
+    }
+    cy.log('');
+  } else {
+    cy.log('📊 Validando: Reactiva Inductiva');
+    cy.log(`   ┌─ Frontend: ${datosFrontend.reactivaInductiva.encontrado ? '✅ Encontrado' : '❌ No encontrado'}`);
+    cy.log(`   └─ Servicio: ${datosServicio?.reactivaInductiva?.encontrado ? '✅ Encontrado' : '❌ No encontrado'}`);
+    cy.log('');
+  }
+  
+  // Comparar reactiva capacitiva
+  if (datosFrontend.reactivaCapacitiva.encontrado && datosServicio?.reactivaCapacitiva?.encontrado) {
+    cy.log('📊 Validando: Reactiva Capacitiva');
+    
+    // Comparar header (copy)
+    const headerFrontend = (datosFrontend.reactivaCapacitiva.header || 'Total Energía Reactiva Capacitiva').toLowerCase();
+    const headerServicio = (datosServicio.reactivaCapacitiva.header || '').toLowerCase();
+    comparacion.reactivaCapacitiva.header = headerFrontend.includes('reactiva') && 
+                                            headerServicio.includes('reactiva') && 
+                                            headerServicio.includes('capacitiva');
+    
+    // Comparar valor (copy)
+    comparacion.reactivaCapacitiva.valor = compararValoresAproximados(
+      datosFrontend.reactivaCapacitiva.valor_str || datosFrontend.reactivaCapacitiva.valor,
+      datosServicio.reactivaCapacitiva.valor_str,
+      datosServicio.reactivaCapacitiva.value
+    );
+    
+    // Comparar porcentaje (copy)
+    comparacion.reactivaCapacitiva.porcentaje = compararValores(
+      datosFrontend.reactivaCapacitiva.porcentaje,
+      datosServicio.reactivaCapacitiva.porcentaje || datosServicio.reactivaCapacitiva.subheader
+    );
+    
+    const todasCoinciden = comparacion.reactivaCapacitiva.header && 
+                          comparacion.reactivaCapacitiva.valor && 
+                          comparacion.reactivaCapacitiva.porcentaje;
+    
+    cy.log(`   ┌─ Frontend (HTML):`);
+    cy.log(`   │  Header: "${datosFrontend.reactivaCapacitiva.header || 'Total Energía Reactiva Capacitiva'}"`);
+    cy.log(`   │  Valor: "${datosFrontend.reactivaCapacitiva.valor_str || datosFrontend.reactivaCapacitiva.valor || 'N/A'}"`);
+    cy.log(`   │  Porcentaje: "${datosFrontend.reactivaCapacitiva.porcentaje || 'N/A'}"`);
+    cy.log(`   ├─ Servicio (API):`);
+    cy.log(`   │  Header: "${datosServicio.reactivaCapacitiva.header || 'N/A'}"`);
+    cy.log(`   │  Valor: "${datosServicio.reactivaCapacitiva.valor_str || datosServicio.reactivaCapacitiva.value || 'N/A'}"`);
+    cy.log(`   │  Porcentaje: "${datosServicio.reactivaCapacitiva.porcentaje || datosServicio.reactivaCapacitiva.subheader || 'N/A'}"`);
+    cy.log(`   └─ Validación:`);
+    cy.log(`      🎯 RESULTADO: ${todasCoinciden ? '✅ Todas las validaciones correctas' : '❌ ERROR - Se encontraron diferencias'}`);
+    cy.log(`         Header: ${comparacion.reactivaCapacitiva.header ? '✅' : '❌'}`);
+    cy.log(`         Valor: ${comparacion.reactivaCapacitiva.valor ? '✅' : '❌'}`);
+    cy.log(`         Porcentaje: ${comparacion.reactivaCapacitiva.porcentaje ? '✅' : '❌'}`);
+    
+    if (!todasCoinciden) {
+      cy.log(`         ┌─ Detalles de diferencias:`);
+      if (!comparacion.reactivaCapacitiva.valor) {
+        cy.log(`         │  Valor:`);
+        cy.log(`         │    Frontend: "${datosFrontend.reactivaCapacitiva.valor_str || datosFrontend.reactivaCapacitiva.valor || 'N/A'}"`);
+        cy.log(`         │    Servicio: "${datosServicio.reactivaCapacitiva.valor_str || datosServicio.reactivaCapacitiva.value || 'N/A'}"`);
+      }
+      if (!comparacion.reactivaCapacitiva.porcentaje) {
+        cy.log(`         │  Porcentaje:`);
+        cy.log(`         │    Frontend: "${datosFrontend.reactivaCapacitiva.porcentaje || 'N/A'}"`);
+        cy.log(`         │    Servicio: "${datosServicio.reactivaCapacitiva.porcentaje || datosServicio.reactivaCapacitiva.subheader || 'N/A'}"`);
+      }
+      cy.log(`         └─`);
+    }
+    cy.log('');
+  } else {
+    cy.log('📊 Validando: Reactiva Capacitiva');
+    cy.log(`   ┌─ Frontend: ${datosFrontend.reactivaCapacitiva.encontrado ? '✅ Encontrado' : '❌ No encontrado'}`);
+    cy.log(`   └─ Servicio: ${datosServicio?.reactivaCapacitiva?.encontrado ? '✅ Encontrado' : '❌ No encontrado'}`);
+    cy.log('');
+  }
+  
+  cy.log('═══════════════════════════════════════════════════════');
+  cy.log('📋 RESUMEN FINAL DE VALIDACIÓN');
+  cy.log('═══════════════════════════════════════════════════════');
+  
+  const inductivaOk = comparacion.reactivaInductiva.header && 
+                     comparacion.reactivaInductiva.valor && 
+                     comparacion.reactivaInductiva.porcentaje;
+  const capacitivaOk = comparacion.reactivaCapacitiva.header && 
+                      comparacion.reactivaCapacitiva.valor && 
+                      comparacion.reactivaCapacitiva.porcentaje;
+  
+  cy.log(`   Reactiva Inductiva:`);
+  cy.log(`      Header: ${comparacion.reactivaInductiva.header ? '✅' : '❌'}`);
+  cy.log(`      Valor: ${comparacion.reactivaInductiva.valor ? '✅' : '❌'}`);
+  cy.log(`      Porcentaje: ${comparacion.reactivaInductiva.porcentaje ? '✅' : '❌'}`);
+  cy.log(`      Estado: ${inductivaOk ? '✅ Todas las validaciones correctas' : '❌ ERROR - Se encontraron diferencias'}`);
+  cy.log('');
+  cy.log(`   Reactiva Capacitiva:`);
+  cy.log(`      Header: ${comparacion.reactivaCapacitiva.header ? '✅' : '❌'}`);
+  cy.log(`      Valor: ${comparacion.reactivaCapacitiva.valor ? '✅' : '❌'}`);
+  cy.log(`      Porcentaje: ${comparacion.reactivaCapacitiva.porcentaje ? '✅' : '❌'}`);
+  cy.log(`      Estado: ${capacitivaOk ? '✅ Todas las validaciones correctas' : '❌ ERROR - Se encontraron diferencias'}`);
+  cy.log('');
+  cy.log(`   Estado general: ${inductivaOk && capacitivaOk ? '✅ Todas las validaciones correctas' : '⚠️ Se encontraron diferencias'}`);
+  cy.log('═══════════════════════════════════════════════════════');
+  
+  return comparacion;
+}

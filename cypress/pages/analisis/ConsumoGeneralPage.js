@@ -26,6 +26,37 @@ class ConsumoGeneralPage {
   
   // Botón de sedes - usando el ID
   get botonSedes() { return '#breadcrumb-filter-button'; }
+  
+  // ============================================================
+  // SELECTORES DEL MODAL DE MATRIZ DE CONSUMO
+  // ============================================================
+  
+  // Modal y contenedor
+  get modalMatrizConsumo() { return '[role="dialog"], [class*="Modal"], [class*="modal"], [class*="Dialog"], [class*="dialog"]'; }
+  get tituloModal() { return 'h1, h2, h3, [class*="title"], [class*="Title"]'; }
+  get botonCerrarModal() { return 'button[aria-label*="cerrar"], button[aria-label*="close"], button[title*="Cerrar"], button[title*="Close"], [class*="close"]'; }
+  
+  // Sección Agrupación
+  get agrupacionHora() { return 'input[value="hourly"], input[value="hour"], [id*="grouping-hour"], [id*="grouping-Hour"]'; }
+  get agrupacionDia() { return 'input[value="daily"], input[value="day"], [id*="grouping-day"], [id*="grouping-Day"]'; }
+  get agrupacionMes() { return 'input[value="monthly"], input[value="month"], #download-matrix-grouping-month, [id*="grouping-month"], [id*="grouping-Month"]'; }
+  
+  // Sección Sedes
+  get selectorSedes() { return '[id*="sede"], [id*="Sede"], [id*="site"], [id*="Site"], [class*="sede"], [class*="Sede"]'; }
+  get textoSedes() { return '*:contains("sedes"), *:contains("Sedes")'; }
+  
+  // Sección Periodo
+  get campoPeriodo() { return 'input[placeholder*="periodo"], input[placeholder*="period"], input[placeholder*="Selecciona"], #download-matrix-month-picker-button, [id*="period"], [id*="Period"], [id*="date-picker"], [id*="DatePicker"]'; }
+  get botonAplicarPeriodo() { return '#date-picker-apply-button, button:contains("Aplicar"), button:contains("Apply"), [id*="apply"]'; }
+  
+  // Sección Tipo de Energía
+  get checkboxActiva() { return 'input[type="checkbox"][value*="activa"], input[type="checkbox"][value*="active"]'; }
+  get checkboxActivaExportada() { return 'input[type="checkbox"][value*="export"], input[type="checkbox"][value*="exportada"]'; }
+  get checkboxReactivaInductiva() { return 'input[type="checkbox"][value*="inductiva"], input[type="checkbox"][value*="inductive"]'; }
+  get checkboxReactivaCapacitiva() { return 'input[type="checkbox"][value*="capacitiva"], input[type="checkbox"][value*="capacitive"]'; }
+  
+  // Botón de acción
+  get botonEnviarCorreo() { return '#download-matrix-send-button, button:contains("Enviar"), button:contains("Send"), button:contains("correo"), button:contains("email")'; }
 
   // ============================================================
   // MÉTODOS DE NAVEGACIÓN
@@ -93,14 +124,41 @@ class ConsumoGeneralPage {
     cy.log('🔗 Interceptando llamada al API de matrix-file/v2...');
     
     return cy.intercept('POST', '**/ems-api/app-consumptions/consumptions/matrix-file/v2', (req) => {
-      cy.log('📡 Interceptando petición de descarga...');
+      cy.log('📡 Interceptando petición de descarga de matriz...');
       cy.log(`   Email: ${req.body?.email || 'N/A'}`);
       cy.log(`   Start date: ${req.body?.start_date || 'N/A'}`);
       cy.log(`   End date: ${req.body?.end_date || 'N/A'}`);
       cy.log(`   Aggregation: ${req.body?.aggregation || 'N/A'}`);
+      cy.log(`   Contracts: ${req.body?.contracts?.length || 0} contrato(s)`);
+      if (req.body?.contracts && req.body.contracts.length > 0) {
+        cy.log(`   Contract IDs: ${req.body.contracts.join(', ')}`);
+      }
       
       req.continue();
     }).as('matrixFileApi');
+  }
+
+  /**
+   * Esperar a que la llamada al API de matrix-file/v2 se complete y validar respuesta
+   * @param {number} timeout - Timeout en milisegundos (default: 30000)
+   * @returns {Cypress.Chainable<Object>} - Datos del servicio (request y response)
+   */
+  esperarApiMatrixFile(timeout = 30000) {
+    cy.log('⏳ Esperando respuesta del API de matrix-file/v2...');
+    
+    return cy.wait('@matrixFileApi', { timeout }).then((interception) => {
+      expect(interception.response.statusCode).to.eq(200);
+      cy.log('✅ Respuesta del API de matrix-file/v2 recibida exitosamente');
+      
+      const requestBody = interception.request.body;
+      const responseBody = interception.response.body;
+      
+      return cy.wrap({
+        request: requestBody,
+        response: responseBody,
+        statusCode: interception.response.statusCode
+      });
+    });
   }
 
   /**
@@ -902,11 +960,11 @@ class ConsumoGeneralPage {
   }
 
   /**
-   * Ejecutar el flujo completo de descarga
-   * @returns {Cypress.Chainable} - Chainable de Cypress
+   * Ejecutar el flujo completo de descarga de matriz de consumo
+   * @returns {Cypress.Chainable} - Chainable de Cypress con los datos del servicio
    */
   ejecutarFlujoDescarga() {
-    cy.log('📥 Iniciando flujo de descarga...');
+    cy.log('📥 Iniciando flujo de descarga de matriz de consumo...');
     
     // Paso 1: Clic en botón de descarga
     return cy.get('#analysis-download-button', { timeout: 10000 })
@@ -917,179 +975,173 @@ class ConsumoGeneralPage {
         cy.wait(3000); // Esperar a que se abra el modal completamente
         cy.log('✅ Clic en botón de descarga realizado');
         
-        // Paso 2: Clic en checkbox "Mes" - usar el div específico del modal
-        return cy.get('div.DownloadMatrixModal_radioRow__GGsN1 > div:nth-child(3)', { timeout: 10000 })
+        // Paso 2: Clic en agrupación "Mes" usando el ID correcto
+        cy.log('📅 Seleccionando agrupación "Mes"...');
+        return cy.get('#download-matrix-radio-month', { timeout: 10000 })
           .should('be.visible')
           .scrollIntoView()
           .click({ force: true })
           .then(() => {
-            cy.wait(1000);
-            cy.log('✅ Clic en checkbox "Mes" realizado');
+            cy.wait(2000); // Esperar a que se actualice la UI después de seleccionar Mes
+            cy.log('✅ Clic en "Mes" realizado');
             
-            // Paso 3: Clic en dropdown de sedes - buscar botón sin id que contiene svg dentro de bia-icon-wrapper
-            return cy.get('body').then(($body2) => {
-              // Buscar botón que contiene un div con clase bia-icon-wrapper que contiene svg
-              const $dropdownSedes = $body2.find('button').filter((i, btn) => {
-                const $btn = Cypress.$(btn);
-                const tieneSvg = $btn.find('.bia-icon-wrapper svg').length > 0;
-                const noTieneId = !$btn.attr('id') || $btn.attr('id') === '';
-                return tieneSvg && noTieneId && $btn.is(':visible');
-              }).first();
-              
-              if ($dropdownSedes.length > 0) {
-                return cy.wrap($dropdownSedes)
-                  .scrollIntoView()
-                  .click({ force: true })
-                  .then(() => {
-                    cy.wait(2000); // Esperar a que se abra el dropdown
-                    cy.log('✅ Clic en dropdown de sedes realizado');
-                    
-                    // Seleccionar la primera opción del dropdown de sedes
-                    return cy.get('body').then(($body) => {
-                      // Buscar opciones del dropdown (menuitem, option, li, etc.)
-                      const $opciones = $body.find('[role="menuitem"], [role="option"], li, [class*="item"], [class*="option"]').filter(':visible');
-                      
-                      if ($opciones.length > 0) {
-                        cy.log(`📋 Opciones encontradas en dropdown: ${$opciones.length}`);
-                        // Seleccionar la primera opción
-                        return cy.wrap($opciones.first())
+            // Paso 3: Clic en el botón de periodo usando el ID correcto
+            cy.log('📆 Abriendo selector de periodo...');
+            return cy.get('#download-matrix-date-picker-button', { timeout: 10000 })
+              .should('be.visible')
+              .scrollIntoView()
+              .click({ force: true })
+              .then(() => {
+                cy.wait(2000); // Esperar a que se abra el calendario
+                cy.log('✅ Selector de periodo abierto');
+                
+                // Paso 4: El calendario ya trae seleccionado un mes, solo hacer clic en "Aplicar"
+                cy.log('🔄 Aplicando selección del periodo...');
+                return cy.get('#date-picker-apply-button', { timeout: 10000 })
+                      .should('be.visible')
+                      .scrollIntoView()
+                      .click({ force: true })
+                      .then(() => {
+                        cy.wait(1000);
+                        cy.log('✅ Clic en "Aplicar" realizado');
+                        
+                        // Verificar que no haya ocurrido un refresh de página
+                        cy.url().should('not.include', '/login');
+                        cy.get('#download-matrix-send-button', { timeout: 10000 }).should('exist');
+                        
+                        // Paso 5: Clic en "Enviar a mi correo"
+                        cy.log('📧 Enviando correo...');
+                        
+                        return cy.get('#download-matrix-send-button', { timeout: 10000 })
+                          .should('be.visible')
                           .scrollIntoView()
                           .click({ force: true })
                           .then(() => {
-                            cy.wait(1500); // Esperar a que se cierre el dropdown
-                            cy.log('✅ Opción seleccionada en dropdown de sedes');
+                            cy.log('✅ Clic en "Enviar a mi correo" realizado');
                             
-                            // Paso 4: Clic en "Seleccionar periodo" - buscar con múltiples estrategias
-                            return cy.get('body').then(($body2) => {
-                              // Buscar el botón "Seleccionar periodo" con múltiples estrategias
-                              let $botonPeriodo = $body2.find('button.bia-button.bia-button--secondary.bia-button--small.DownloadMatrixModal_datePickerButton__Jw4qI').filter(':visible');
+                            // Verificar que no haya ocurrido un refresh de página después de enviar
+                            cy.url().should('not.include', '/login');
+                            
+                            // Esperar respuesta del API de matrix-file/v2
+                            return cy.wait('@matrixFileApi', { timeout: 30000 }).then((interception) => {
+                              // Validar que la respuesta sea exitosa
+                              expect(interception.response.statusCode).to.eq(200);
+                              cy.log('✅ API de descarga respondió exitosamente');
                               
-                              if ($botonPeriodo.length === 0) {
-                                // Buscar por texto
-                                $botonPeriodo = $body2.find('button').filter((i, btn) => {
-                                  const $btn = Cypress.$(btn);
-                                  const text = $btn.text().trim().toLowerCase();
-                                  return (text.includes('seleccionar') && text.includes('periodo')) ||
-                                         (text.includes('periodo') && $btn.hasClass('bia-button'));
-                                }).filter(':visible').first();
-                              }
+                              // Extraer y validar datos del servicio
+                              const requestBody = interception.request.body;
+                              const responseBody = interception.response.body;
                               
-                              if ($botonPeriodo.length > 0) {
-                                return cy.wrap($botonPeriodo)
-                                  .scrollIntoView()
-                                  .should('be.visible')
-                                  .click({ force: true })
-                                  .then(() => {
-                                    cy.wait(2000); // Esperar a que se abra el selector de período
-                                    cy.log('✅ Clic en "Seleccionar periodo" realizado');
-                                    
-                                    // Paso 5: Clic en "Aplicar" (el que está seleccionado por defecto)
-                                    // Buscar el botón "Aplicar" - puede ser el mismo selector o uno diferente
-                                    return cy.contains('button', 'Aplicar', { timeout: 10000 })
-                                      .should('be.visible')
-                                      .scrollIntoView()
-                                      .click({ force: true })
-                                      .then(() => {
-                                        cy.wait(1000);
-                                        cy.log('✅ Clic en "Aplicar" realizado');
-                                        
-                                        // Paso 6: Clic en "Enviar correo" y esperar respuesta del API
-                                        return cy.get('button.bia-button.bia-button--primary.bia-button--large.bia-button--full-width', { timeout: 10000 })
-                                          .should('be.visible')
-                                          .scrollIntoView()
-                                          .click({ force: true })
-                                          .then(() => {
-                                            cy.log('✅ Clic en "Enviar correo" realizado');
-                                            
-                                            // Esperar respuesta del API de matrix-file/v2
-                                            return cy.wait('@matrixFileApi', { timeout: 30000 }).then((interception) => {
-                                              // Validar que la respuesta sea exitosa
-                                              expect(interception.response.statusCode).to.eq(200);
-                                              cy.log('✅ API de descarga respondió exitosamente');
-                                              
-                                              // Validar que el email se envió correctamente
-                                              const requestBody = interception.request.body;
-                                              cy.log(`📧 Email al que se envió: ${requestBody.email || 'N/A'}`);
-                                              cy.log(`📅 Período: ${requestBody.start_date || 'N/A'} - ${requestBody.end_date || 'N/A'}`);
-                                              cy.log(`📊 Agregación: ${requestBody.aggregation || 'N/A'}`);
-                                              cy.log(`📋 Contratos: ${requestBody.contracts?.length || 0}`);
-                                              
-                                              // Validar que el email esté presente
-                                              expect(requestBody.email, 'El email debe estar presente en la petición').to.exist;
-                                              expect(requestBody.email, 'El email no debe estar vacío').to.not.be.empty;
-                                              
-                                              cy.wait(2000); // Esperar adicional para que aparezca la card informativa
-                                              
-                                              // Paso 7: Validar que aparezca la card informativa de éxito
-                                              return cy.get('body').then(($body) => {
-                                                // Buscar card informativa - múltiples estrategias
-                                                let $cardInfo = $body.find('[class*="Toast"], [class*="toast"], [class*="Notification"], [class*="notification"], [class*="Alert"], [class*="alert"], [class*="Success"], [class*="success"], [class*="Message"], [class*="message"]').filter(':visible');
-                                                
-                                                if ($cardInfo.length === 0) {
-                                                  // Buscar por texto que indique éxito
-                                                  $cardInfo = $body.find('*').filter((i, el) => {
-                                                    const $el = Cypress.$(el);
-                                                    const text = $el.text().trim().toLowerCase();
-                                                    return (text.includes('enviado') || 
-                                                            text.includes('enviada') ||
-                                                            text.includes('correctamente') ||
-                                                            text.includes('éxito') ||
-                                                            text.includes('exito') ||
-                                                            text.includes('success')) &&
-                                                           $el.is(':visible') &&
-                                                           text.length < 200;
-                                                  }).first();
-                                                }
-                                                
-                                                if ($cardInfo.length > 0) {
-                                                  const textoCard = $cardInfo.text().trim();
-                                                  cy.log(`✅ Card informativa encontrada: "${textoCard.substring(0, 100)}"`);
-                                                  cy.log('✅ El correo fue enviado correctamente');
-                                                } else {
-                                                  cy.log('⚠️ No se encontró card informativa visible');
-                                                  cy.log('   Buscando mensajes de éxito en la página...');
-                                                  
-                                                  // Buscar cualquier texto que indique éxito
-                                                  const $textosExito = $body.find('*').filter((i, el) => {
-                                                    const $el = Cypress.$(el);
-                                                    const text = $el.text().trim().toLowerCase();
-                                                    return (text.includes('enviado') || text.includes('correctamente')) &&
-                                                           $el.is(':visible') &&
-                                                           text.length < 150;
-                                                  });
-                                                  
-                                                  if ($textosExito.length > 0) {
-                                                    cy.log(`✅ Se encontró mensaje de éxito: "${$textosExito.first().text().trim().substring(0, 80)}"`);
-                                                  } else {
-                                                    cy.log('⚠️ No se encontró mensaje de confirmación visible');
-                                                  }
-                                                }
-                                                
-                                                cy.log('✅ Flujo de descarga completado exitosamente');
-                                              });
-                                            });
-                                          });
-                                      });
-                                  });
-                              } else {
-                                cy.log('⚠️ No se encontró el botón "Seleccionar periodo"');
-                                throw new Error('No se pudo encontrar el botón "Seleccionar periodo"');
-                              }
+                              cy.log('');
+                              cy.log('═══════════════════════════════════════════════════════');
+                              cy.log('📡 VALIDACIÓN CONTRA EL SERVICIO');
+                              cy.log('═══════════════════════════════════════════════════════');
+                              cy.log('   ┌─ Datos enviados al servicio:');
+                              cy.log(`   │  Email: "${requestBody.email || 'N/A'}"`);
+                              cy.log(`   │  Start date: "${requestBody.start_date || 'N/A'}"`);
+                              cy.log(`   │  End date: "${requestBody.end_date || 'N/A'}"`);
+                              cy.log(`   │  Aggregation: "${requestBody.aggregation || 'N/A'}"`);
+                              cy.log(`   │  Energy types: ${requestBody.energy_types?.join(', ') || 'N/A'}`);
+                              cy.log(`   │  Contracts: ${requestBody.contracts?.length || 0} contrato(s)`);
+                              cy.log(`   ├─ Respuesta del servicio:`);
+                              cy.log(`   │  Status: ${interception.response.statusCode}`);
+                              cy.log(`   │  Response: ${JSON.stringify(responseBody).substring(0, 200)}...`);
+                              cy.log(`   └─ Validación:`);
+                              
+                              // Validar que el email esté presente
+                              expect(requestBody.email, 'El email debe estar presente en la petición').to.exist;
+                              expect(requestBody.email, 'El email no debe estar vacío').to.not.be.empty;
+                              
+                              // Validar que la agregación sea "month" (según el curl proporcionado)
+                              expect(requestBody.aggregation, 'La agregación debe ser "month"').to.eq('month');
+                              
+                              // Validar que haya fechas
+                              expect(requestBody.start_date, 'La fecha de inicio debe estar presente').to.exist;
+                              expect(requestBody.end_date, 'La fecha de fin debe estar presente').to.exist;
+                              
+                              // Validar que haya tipos de energía
+                              expect(requestBody.energy_types, 'Debe haber tipos de energía en la petición').to.exist;
+                              expect(requestBody.energy_types.length, 'Debe haber al menos un tipo de energía').to.be.greaterThan(0);
+                              
+                              // Validar que haya contratos
+                              expect(requestBody.contracts, 'Debe haber contratos en la petición').to.exist;
+                              expect(requestBody.contracts.length, 'Debe haber al menos un contrato').to.be.greaterThan(0);
+                              
+                              cy.log(`      Email: ✅`);
+                              cy.log(`      Aggregation (month): ✅`);
+                              cy.log(`      Fechas: ✅`);
+                              cy.log(`      Energy types: ✅`);
+                              cy.log(`      Contratos: ✅`);
+                              cy.log(`      🎯 RESULTADO: ✅ Todas las validaciones correctas`);
+                              cy.log('═══════════════════════════════════════════════════════');
+                              
+                              cy.wait(2000); // Esperar adicional para que aparezca el mensaje
+                              
+                              // Paso 6: Validar el mensaje informativo específico
+                              return cy.get('body', { timeout: 10000 }).then(($body) => {
+                                // Buscar el mensaje específico: "Estamos preparando tu archivo. En cuanto esté listo, lo enviaremos a karen.diaz@bia.app"
+                                const textoBuscado = 'estamos preparando tu archivo';
+                                const emailBuscado = 'karen.diaz@bia.app';
+                                
+                                let $mensaje = $body.find('*').filter((i, el) => {
+                                  const $el = Cypress.$(el);
+                                  const text = $el.text().trim().toLowerCase();
+                                  return text.includes(textoBuscado) && 
+                                         text.includes(emailBuscado.toLowerCase()) &&
+                                         $el.is(':visible') &&
+                                         text.length < 500;
+                                }).first();
+                                
+                                if ($mensaje.length > 0) {
+                                  const textoCompleto = $mensaje.text().trim();
+                                  cy.log(`✅ Mensaje informativo encontrado: "${textoCompleto.substring(0, 150)}"`);
+                                  
+                                  // Validar que el email en el mensaje coincida con el del servicio
+                                  if (textoCompleto.toLowerCase().includes(requestBody.email.toLowerCase())) {
+                                    cy.log(`✅ Email en el mensaje coincide con el del servicio: "${requestBody.email}"`);
+                                  } else {
+                                    cy.log(`⚠️ Email en el mensaje no coincide: esperado "${requestBody.email}", encontrado en mensaje`);
+                                  }
+                                } else {
+                                  cy.log('⚠️ No se encontró el mensaje informativo específico');
+                                  cy.log('   Buscando cualquier mensaje relacionado...');
+                                  
+                                  // Buscar mensajes relacionados
+                                  $mensaje = $body.find('[class*="Toast"], [class*="toast"], [class*="Notification"], [class*="notification"], [class*="Alert"], [class*="alert"], [class*="Message"], [class*="message"]').filter((i, el) => {
+                                    const $el = Cypress.$(el);
+                                    const text = $el.text().trim().toLowerCase();
+                                    return (text.includes('preparando') || 
+                                            text.includes('archivo') ||
+                                            text.includes('enviaremos') ||
+                                            text.includes('enviado')) &&
+                                           $el.is(':visible') &&
+                                           text.length < 500;
+                                  }).first();
+                                  
+                                  if ($mensaje.length > 0) {
+                                    cy.log(`✅ Mensaje relacionado encontrado: "${$mensaje.text().trim().substring(0, 150)}"`);
+                                  } else {
+                                    cy.log('⚠️ No se encontró ningún mensaje relacionado');
+                                    cy.log('   (El API respondió correctamente, esto es solo informativo)');
+                                  }
+                                }
+                                
+                                cy.log('');
+                                cy.log('✅ Flujo de descarga completado exitosamente');
+                                
+                                // Retornar los datos del servicio para validación adicional
+                                return cy.wrap({
+                                  request: requestBody,
+                                  response: responseBody,
+                                  statusCode: interception.response.statusCode
+                                });
+                              });
                             });
                           });
-                      } else {
-                        cy.log('⚠️ No se encontraron opciones en el dropdown de sedes');
-                        throw new Error('No se encontraron opciones en el dropdown de sedes');
-                      }
+                        });
+                      });
                     });
                   });
-              } else {
-                cy.log('⚠️ No se encontró el dropdown de sedes en el modal de descarga');
-                throw new Error('No se pudo encontrar el dropdown de sedes');
-              }
-            });
-          });
-      });
   }
 
   /**

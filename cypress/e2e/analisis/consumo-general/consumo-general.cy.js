@@ -729,7 +729,20 @@ describe('Análisis - Consumo General', () => {
         consumoGeneralPage.interceptarApiMatrixFile();
         cy.wait(500); // Esperar a que el intercept esté configurado
         
-        return consumoGeneralPage.ejecutarFlujoDescarga().then(() => {
+        return consumoGeneralPage.ejecutarFlujoDescarga().then((datosServicio) => {
+          if (datosServicio) {
+            cy.log('');
+            cy.log('═══════════════════════════════════════════════════════');
+            cy.log('📋 RESUMEN DE VALIDACIÓN DEL SERVICIO');
+            cy.log('═══════════════════════════════════════════════════════');
+            cy.log(`   Email enviado: "${datosServicio.request.email}"`);
+            cy.log(`   Agregación: "${datosServicio.request.aggregation}"`);
+            cy.log(`   Período: ${datosServicio.request.start_date} - ${datosServicio.request.end_date}`);
+            cy.log(`   Contratos: ${datosServicio.request.contracts?.length || 0}`);
+            cy.log(`   Status del servicio: ${datosServicio.statusCode}`);
+            cy.log('═══════════════════════════════════════════════════════');
+          }
+          
           cy.log('');
           cy.log('═══════════════════════════════════════════════════════');
           cy.log('✅ AUTOMATIZACIÓN COMPLETA FINALIZADA');
@@ -740,7 +753,7 @@ describe('Análisis - Consumo General', () => {
           cy.log('   ✅ Filtro diario validado');
           cy.log('   ✅ Dropdown de filtros validado');
           cy.log('   ✅ Botón de sedes y scroll validado');
-          cy.log('   ✅ Flujo de descarga completado');
+          cy.log('   ✅ Flujo de descarga completado y validado contra servicio');
           cy.log('═══════════════════════════════════════════════════════');
         });
       });
